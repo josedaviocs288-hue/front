@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import { styles } from "@/src/styles/perfilStyles"; 
+import { styles } from "@/src/styles/perfilStyles";
+
 
 export default function Perfil() {
   const [nome, setNome] = useState("");
