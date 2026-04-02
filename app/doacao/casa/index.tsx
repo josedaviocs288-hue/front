@@ -87,7 +87,7 @@ export default function DoacaoCasa() {
         if (endereco) {
           setRua(endereco.street || endereco.name || "");
           setBairro(endereco.district || endereco.subregion || "");
-          setCidade(endereco.city || endereco.subregion || "");
+          setCidade(endereco.city || endereco.subregion || "Itarema");
           setUf(normalizarUF(endereco.region || "CE"));
 
           if (!referencia.trim()) {
@@ -121,7 +121,7 @@ export default function DoacaoCasa() {
   async function registrarDoacao() {
     try {
       const token = await getToken();
-      console.log("🔑 TOKEN ANTES DE REGISTRAR:", token);
+      console.log("🔑 TOKEN ANTES DE REGISTRAR:", token ? "OK" : "AUSENTE");
 
       if (!token) {
         Alert.alert("Erro", "Sua sessão expirou. Faça login novamente.");
@@ -160,7 +160,7 @@ export default function DoacaoCasa() {
             : `${Math.round(quantidadeNumerica)} unidades`,
         quantidadeKg: tipoQuantidade === "quilo" ? quantidadeNumerica : null,
         quantidadeUnidades:
-          tipoQuantidade === "unidade" ? Math.round(quantidadeNumerica) : 0,
+          tipoQuantidade === "unidade" ? Math.round(quantidadeNumerica) : null,
         rua: rua.trim() || "Não informado",
         numero: numero.trim() || "S/N",
         bairro: bairro.trim() || "Não informado",
@@ -178,7 +178,7 @@ export default function DoacaoCasa() {
 
       const response = await api.post("/doacoes/casa", payload);
 
-      console.log("✅ RESPOSTA DOAÇÃO:", response?.data);
+      console.log("✅ RESPOSTA DOAÇÃO:", JSON.stringify(response?.data, null, 2));
 
       Alert.alert("Doação registrada", "Aguarde a confirmação do coletor.");
 
@@ -230,11 +230,15 @@ export default function DoacaoCasa() {
           <Text style={styles.label}>Tipo de reciclável</Text>
           <View style={styles.pickerWrapper}>
             <Picker
-  selectedValue={tipoReciclavel}
-  onValueChange={(value) => setTipoReciclavel(value)}
-  style={{ color: tipoReciclavel ? "#111827" : "#9ca3af" }}
->
-              <Picker.Item label="Escolha o tipo de doação" value="" color="#9ca3af" />
+              selectedValue={tipoReciclavel}
+              onValueChange={(value) => setTipoReciclavel(value)}
+              style={{ color: tipoReciclavel ? "#111827" : "#9ca3af" }}
+            >
+              <Picker.Item
+                label="Escolha o tipo de doação"
+                value=""
+                color="#9ca3af"
+              />
               <Picker.Item label="Plástico" value="PLASTICO" />
               <Picker.Item label="Vidro" value="VIDRO" />
               <Picker.Item label="Papel" value="PAPEL" />
@@ -246,12 +250,12 @@ export default function DoacaoCasa() {
           <Text style={styles.label}>Doar por</Text>
           <View style={styles.pickerWrapper}>
             <Picker
-  selectedValue={tipoQuantidade}
-  onValueChange={(value) =>
-    setTipoQuantidade(value as "quilo" | "unidade")
-  }
-  style={{ color: "#111827" }}
->
+              selectedValue={tipoQuantidade}
+              onValueChange={(value) =>
+                setTipoQuantidade(value as "quilo" | "unidade")
+              }
+              style={{ color: "#111827" }}
+            >
               <Picker.Item label="Quilo (kg)" value="quilo" />
               <Picker.Item label="Unidade" value="unidade" />
             </Picker>
@@ -266,7 +270,7 @@ export default function DoacaoCasa() {
                 ? "Digite a quantidade em kg"
                 : "Digite a quantidade em unidades"
             }
-            placeholderTextColor="#080808"
+            placeholderTextColor="#6b7280"
             value={quantidade}
             onChangeText={setQuantidade}
           />
@@ -275,7 +279,7 @@ export default function DoacaoCasa() {
           <TextInput
             style={styles.textInput}
             placeholder="Ex.: 123"
-            placeholderTextColor="#090909"
+            placeholderTextColor="#6b7280"
             value={numero}
             onChangeText={setNumero}
           />
@@ -284,7 +288,7 @@ export default function DoacaoCasa() {
           <TextInput
             style={styles.textInput}
             placeholder="Ex.: portão azul, perto da praça"
-            placeholderTextColor="#0d0d0d"
+            placeholderTextColor="#6b7280"
             value={referencia}
             onChangeText={setReferencia}
           />
@@ -293,7 +297,7 @@ export default function DoacaoCasa() {
           <TextInput
             style={[styles.textInput, styles.textArea]}
             placeholder="Ex.: material separado em sacos"
-            placeholderTextColor="#0a0a0a"
+            placeholderTextColor="#6b7280"
             value={observacoes}
             onChangeText={setObservacoes}
             multiline
