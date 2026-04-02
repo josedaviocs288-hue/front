@@ -117,208 +117,234 @@ export default function Cadastro() {
     <View
       style={{
         flex: 1,
-        backgroundColor: "#f2f2f2",
-        padding: 20,
+        backgroundColor: "#09B388",
         justifyContent: "center",
+        alignItems: "center",
+        paddingHorizontal: 20,
       }}
     >
-      <Text
+      <View
         style={{
-          fontSize: 28,
-          fontWeight: "bold",
-          textAlign: "center",
-          marginBottom: 30,
-          color: "#222",
+          width: "100%",
+          maxWidth: 540,
+          backgroundColor: "#F7F7F7",
+          borderRadius: 20,
+          paddingHorizontal: 24,
+          paddingVertical: 30,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 8 },
+          shadowOpacity: 0.18,
+          shadowRadius: 12,
+          elevation: 10,
         }}
       >
-        RECICLE+
-      </Text>
-
-      <Text style={{ color: "#222", marginBottom: 6 }}>Nome</Text>
-      <TextInput
-        value={nome}
-        onChangeText={setNome}
-        placeholder="Digite seu nome"
-        placeholderTextColor="#666"
-        autoCapitalize="words"
-        editable={!loading}
-        style={{
-          borderWidth: 1,
-          borderColor: "#999",
-          backgroundColor: "#fff",
-          marginBottom: 15,
-          padding: 12,
-          borderRadius: 8,
-          color: "#222",
-        }}
-      />
-
-      <Text style={{ color: "#222", marginBottom: 6 }}>Email</Text>
-      <TextInput
-        value={email}
-        onChangeText={setEmail}
-        placeholder="Digite seu email"
-        placeholderTextColor="#666"
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="email-address"
-        editable={!loading}
-        style={{
-          borderWidth: 1,
-          borderColor: "#999",
-          backgroundColor: "#fff",
-          marginBottom: 15,
-          padding: 12,
-          borderRadius: 8,
-          color: "#222",
-        }}
-      />
-
-      <Text style={{ color: "#222", marginBottom: 6 }}>CPF</Text>
-      <TextInput
-        value={cpf}
-        onChangeText={(texto) => setCpf(formatarCpf(texto))}
-        placeholder="Digite seu CPF"
-        placeholderTextColor="#666"
-        keyboardType="numeric"
-        maxLength={14}
-        editable={!loading}
-        style={{
-          borderWidth: 1,
-          borderColor: "#999",
-          backgroundColor: "#fff",
-          marginBottom: 15,
-          padding: 12,
-          borderRadius: 8,
-          color: "#222",
-        }}
-      />
-
-      <Text style={{ color: "#222", marginBottom: 6 }}>Senha</Text>
-      <TextInput
-        value={senha}
-        onChangeText={setSenha}
-        placeholder="Digite sua senha"
-        placeholderTextColor="#666"
-        secureTextEntry
-        autoCapitalize="none"
-        autoCorrect={false}
-        editable={!loading}
-        style={{
-          borderWidth: 1,
-          borderColor: "#999",
-          backgroundColor: "#fff",
-          marginBottom: 15,
-          padding: 12,
-          borderRadius: 8,
-          color: "#222",
-        }}
-      />
-
-      <Text style={{ color: "#222", marginBottom: 8 }}>Tipo de usuário</Text>
-
-      <View style={{ flexDirection: "row", marginBottom: 10 }}>
-        <TouchableOpacity
-          onPress={() => setTipo("DOADOR")}
-          disabled={loading}
+        <Text
           style={{
-            flex: 1,
-            backgroundColor: tipo === "DOADOR" ? "orange" : "#fff",
-            padding: 12,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#999",
-            marginRight: 5,
+            fontSize: 26,
+            fontWeight: "700",
+            textAlign: "center",
+            color: "#0C6B5A",
+            marginBottom: 28,
           }}
         >
-          <Text
+          Cadastro
+        </Text>
+
+        <TextInput
+          value={nome}
+          onChangeText={setNome}
+          placeholder="Nome completo"
+          placeholderTextColor="#8F8F8F"
+          autoCapitalize="words"
+          editable={!loading}
+          style={{
+            height: 52,
+            borderBottomWidth: 1,
+            borderBottomColor: "#B7D3CC",
+            marginBottom: 22,
+            fontSize: 16,
+            color: "#1F1F1F",
+            backgroundColor: "transparent",
+          }}
+        />
+
+        <TextInput
+          value={email}
+          onChangeText={setEmail}
+          placeholder="E-mail"
+          placeholderTextColor="#8F8F8F"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          editable={!loading}
+          style={{
+            height: 52,
+            borderBottomWidth: 1,
+            borderBottomColor: "#B7D3CC",
+            marginBottom: 22,
+            fontSize: 16,
+            color: "#1F1F1F",
+            backgroundColor: "transparent",
+          }}
+        />
+
+        <TextInput
+          value={cpf}
+          onChangeText={(texto) => setCpf(formatarCpf(texto))}
+          placeholder="CPF"
+          placeholderTextColor="#8F8F8F"
+          keyboardType="numeric"
+          maxLength={14}
+          editable={!loading}
+          style={{
+            height: 52,
+            borderBottomWidth: 1,
+            borderBottomColor: "#B7D3CC",
+            marginBottom: 22,
+            fontSize: 16,
+            color: "#1F1F1F",
+            backgroundColor: "transparent",
+          }}
+        />
+
+        <TextInput
+          value={senha}
+          onChangeText={setSenha}
+          placeholder="Senha"
+          placeholderTextColor="#8F8F8F"
+          secureTextEntry
+          autoCapitalize="none"
+          autoCorrect={false}
+          editable={!loading}
+          style={{
+            height: 52,
+            borderBottomWidth: 1,
+            borderBottomColor: "#B7D3CC",
+            marginBottom: 26,
+            fontSize: 16,
+            color: "#1F1F1F",
+            backgroundColor: "transparent",
+          }}
+        />
+
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginBottom: 26,
+          }}
+        >
+          <TouchableOpacity
+            onPress={() => setTipo("DOADOR")}
+            disabled={loading}
             style={{
-              textAlign: "center",
-              color: tipo === "DOADOR" ? "#fff" : "#222",
-              fontWeight: "bold",
+              flex: 1,
+              height: 56,
+              borderRadius: 10,
+              borderWidth: 1.5,
+              borderColor: "#39B89B",
+              backgroundColor: "#F7F7F7",
+              justifyContent: "center",
+              alignItems: "center",
+              marginRight: 8,
             }}
           >
-            DOADOR
+            <Text
+              style={{
+                color: "#2CA98D",
+                fontWeight: "600",
+                fontSize: 16,
+              }}
+            >
+              Doador
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setTipo("COLETOR")}
+            disabled={loading}
+            style={{
+              flex: 1,
+              height: 56,
+              borderRadius: 10,
+              borderWidth: 1.5,
+              borderColor: "#39B89B",
+              backgroundColor: "#F7F7F7",
+              justifyContent: "center",
+              alignItems: "center",
+              marginLeft: 8,
+            }}
+          >
+            <Text
+              style={{
+                color: "#2CA98D",
+                fontWeight: "600",
+                fontSize: 16,
+              }}
+            >
+              Coletor
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {error ? (
+          <Text
+            style={{
+              color: "#D93025",
+              marginBottom: 14,
+              textAlign: "center",
+              fontSize: 14,
+            }}
+          >
+            {error}
           </Text>
+        ) : null}
+
+        <TouchableOpacity
+          onPress={handleCadastro}
+          disabled={loading}
+          style={{
+            backgroundColor: "#0B6B59",
+            height: 56,
+            borderRadius: 8,
+            justifyContent: "center",
+            alignItems: "center",
+            opacity: loading ? 0.7 : 1,
+          }}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontWeight: "700",
+                fontSize: 16,
+                letterSpacing: 0.4,
+              }}
+            >
+              Cadastrar
+            </Text>
+          )}
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => setTipo("COLETOR")}
+          onPress={() => router.replace("/login")}
           disabled={loading}
-          style={{
-            flex: 1,
-            backgroundColor: tipo === "COLETOR" ? "orange" : "#fff",
-            padding: 12,
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#999",
-            marginLeft: 5,
-          }}
+          style={{ marginTop: 22 }}
         >
           <Text
             style={{
               textAlign: "center",
-              color: tipo === "COLETOR" ? "#fff" : "#222",
-              fontWeight: "bold",
+              color: "#2FAF91",
+              fontSize: 15,
+              fontWeight: "500",
             }}
           >
-            COLETOR
+            Já tem conta? Faça login
           </Text>
         </TouchableOpacity>
       </View>
-
-      {error ? (
-        <Text
-          style={{
-            color: "red",
-            marginBottom: 10,
-            textAlign: "center",
-          }}
-        >
-          {error}
-        </Text>
-      ) : null}
-
-      <TouchableOpacity
-        onPress={handleCadastro}
-        disabled={loading}
-        style={{
-          backgroundColor: "orange",
-          padding: 15,
-          marginTop: 10,
-          borderRadius: 8,
-          opacity: loading ? 0.7 : 1,
-        }}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text
-            style={{
-              textAlign: "center",
-              color: "#fff",
-              fontWeight: "bold",
-            }}
-          >
-            Cadastrar
-          </Text>
-        )}
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        onPress={() => router.replace("/login")}
-        disabled={loading}
-      >
-        <Text
-          style={{
-            marginTop: 15,
-            textAlign: "center",
-            color: "#222",
-          }}
-        >
-          Já tem conta? Entrar
-        </Text>
-      </TouchableOpacity>
     </View>
   );
 }
