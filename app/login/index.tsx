@@ -38,7 +38,7 @@ export default function LoginScreen() {
       console.log("✅ LOGIN OK:", response);
 
       Alert.alert("Sucesso", "Login realizado com sucesso!");
-      router.replace("/(tabs)/home");
+      router.replace("/home");
     } catch (err: any) {
       console.log("❌ ERRO LOGIN:", err?.response?.data || err?.message);
 
