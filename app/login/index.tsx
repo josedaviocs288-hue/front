@@ -65,7 +65,7 @@ export default function LoginScreen() {
             
             {/* 🔥 CORREÇÃO AQUI */}
             <Image
-              source={require("../../assets/images/logo-recicle-plus.png")}
+              source={require("../../src/assets/images/logo-recicle-plus.png")}
               style={styles.logo}
               resizeMode="contain"
             />
