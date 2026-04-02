@@ -53,12 +53,16 @@ type MapaHomeResponse = {
 
 type Props = {
   tipoUsuario?: TipoUsuario;
+  onAcaoPrincipal?: () => void;
 };
 
 const ROTA_DOACAO = "/doacao/casa";
 const ROTA_COLETAS = "/coletas";
 
-export default function MapaHome({ tipoUsuario: tipoUsuarioProp }: Props) {
+export default function MapaHome({
+  tipoUsuario: tipoUsuarioProp,
+  onAcaoPrincipal,
+}: Props) {
   const cameraRef = useRef<Mapbox.Camera>(null);
 
   const [loading, setLoading] = useState(true);
@@ -246,8 +250,8 @@ export default function MapaHome({ tipoUsuario: tipoUsuarioProp }: Props) {
 
     if (tipoUsuario === "DOADOR" && casaDoador && localizacaoColetor) {
       cameraRef.current.fitBounds(
-        [localizacaoColetor.longitude, localizacaoColetor.latitude],
-        [casaDoador.longitude, casaDoador.latitude],
+        [localizacaoColetor.longitude,     localizacaoColetor.latitude],
+        [casaDoador.longitude,   casaDoador.latitude],
         80,
         1000
       );
@@ -308,11 +312,11 @@ export default function MapaHome({ tipoUsuario: tipoUsuarioProp }: Props) {
 
   useEffect(() => {
     if (!loading) {
-      const timeout = setTimeout(() => {
+      const timeout =   setTimeout(() => {
         centralizarMapa();
       }, 700);
 
-      return () => clearTimeout(timeout);
+      return () =>    clearTimeout(timeout);
     }
   }, [loading, centralizarMapa, rotaGeoJSON]);
 
@@ -476,9 +480,9 @@ export default function MapaHome({ tipoUsuario: tipoUsuarioProp }: Props) {
         )}
 
         <TouchableOpacity
-          style={styles.primaryActionButton}
-          onPress={irParaAcaoPrincipal}
-        >
+  style={styles.primaryActionButton}
+  onPress={onAcaoPrincipal || irParaAcaoPrincipal}
+>
           <Text style={styles.primaryActionText}>{textoBotaoPrincipal}</Text>
         </TouchableOpacity>
 

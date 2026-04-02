@@ -2,7 +2,7 @@ module.exports = {
   expo: {
     name: "Recicle+",
     slug: "recicleplus",
-    version: "1.0.1",
+    version: "1.0.4",
     orientation: "portrait",
     scheme: "recicleplus",
     userInterfaceStyle: "automatic",

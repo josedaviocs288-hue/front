@@ -5,32 +5,21 @@ import axios, {
 } from "axios";
 import { getToken, removeToken, removeUserType } from "./token";
 
-// 🔥 DEBUG ENV
-const ENV_API = process.env.EXPO_PUBLIC_API_URL;
+const baseURL = "http://reciclemais.app.br";
 
 console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-console.log("🌐 ENV API URL (RAW):", ENV_API);
-console.log("🌐 TYPE:", typeof ENV_API);
-console.log("🌐 LENGTH:", ENV_API?.length);
-
-// 🔥 BASE URL FINAL
-const baseURL =
-  ENV_API && ENV_API.trim() !== ""
-    ? ENV_API.trim()
-    : "http://52.67.41.235:8080";
-
 console.log("🚀 BASE URL DEFINIDA:", baseURL);
 console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 
 export const api = axios.create({
   baseURL,
-  timeout: 15000,
+  timeout: 30000,
   headers: {
     "Content-Type": "application/json",
+    Accept: "application/json",
   },
 });
 
-// 🔐 INTERCEPTOR REQUEST
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     if (!config.headers) {
@@ -39,29 +28,22 @@ api.interceptors.request.use(
 
     const token = await getToken();
 
-    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-    console.log("📤 REQUISIÇÃO SAINDO");
-    console.log("➡️ MÉTODO:", (config.method || "GET").toUpperCase());
-    console.log("➡️ BASE URL:", config.baseURL);
-    console.log("➡️ ENDPOINT:", config.url);
-    console.log(
-      "➡️ URL FINAL:",
-      `${config.baseURL ?? ""}${config.url ?? ""}`
-    );
-    console.log("🔑 TOKEN:", token ? "EXISTE ✅" : "NÃO EXISTE ❌");
-
     if (token && token.trim() !== "") {
       config.headers.set("Authorization", `Bearer ${token}`);
     } else {
       config.headers.delete("Authorization");
     }
 
-    if (config.params) {
-      console.log("📎 PARAMS:", config.params);
-    }
+    console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.log("📤 REQUISIÇÃO SAINDO");
+    console.log("➡️ MÉTODO:", (config.method || "GET").toUpperCase());
+    console.log("➡️ BASE URL:", config.baseURL);
+    console.log("➡️ ENDPOINT:", config.url);
+    console.log("➡️ URL FINAL:", `${config.baseURL ?? ""}${config.url ?? ""}`);
+    console.log("🔑 TOKEN:", token ? "EXISTE ✅" : "NÃO EXISTE ❌");
 
     if (config.data) {
-      console.log("📦 BODY:", config.data);
+      console.log("📦 BODY:", JSON.stringify(config.data, null, 2));
     }
 
     return config;
@@ -72,7 +54,6 @@ api.interceptors.request.use(
   }
 );
 
-// 📥 INTERCEPTOR RESPONSE
 api.interceptors.response.use(
   (response) => {
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -82,46 +63,45 @@ api.interceptors.response.use(
       "➡️ URL:",
       `${response.config.baseURL ?? ""}${response.config.url ?? ""}`
     );
-    console.log("➡️ DADOS:", response.data);
+    console.log("➡️ DADOS:", JSON.stringify(response.data, null, 2));
     return response;
   },
-  async (error: AxiosError) => {
+  async (error: AxiosError<any>) => {
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("❌❌❌ ERRO API ❌❌❌");
-
     console.log("➡️ MESSAGE:", error.message);
     console.log("➡️ CODE:", error.code);
 
     if (error.config) {
-      console.log("➡️ URL FINAL:",
+      console.log(
+        "➡️ URL FINAL:",
         `${error.config.baseURL ?? ""}${error.config.url ?? ""}`
       );
     }
 
     if (error.response) {
       console.log("🔥 STATUS:", error.response.status);
-      console.log("🔥 DATA:", error.response.data);
+      console.log("🔥 DATA:", JSON.stringify(error.response.data, null, 2));
 
       if (error.response.status === 401) {
         const url = error.config?.url ?? "";
-
         const rotaPublica =
           url === "/" ||
           url.startsWith("/auth/login") ||
-          url.startsWith("/auth/register");
+          url.startsWith("/auth/register") ||
+          url.startsWith("/actuator/health");
 
         if (!rotaPublica) {
-          console.log("🔒 TOKEN EXPIRADO → LIMPANDO");
           await removeToken();
           await removeUserType();
+          delete api.defaults.headers.common.Authorization;
         }
       }
     } else if (error.request) {
       console.log("🚨 SEM RESPOSTA DO SERVIDOR");
-      console.log("🚨 POSSÍVEL CAUSA:");
-      console.log("➡️ API OFFLINE");
-      console.log("➡️ URL ERRADA");
-      console.log("➡️ CORS / BLOQUEIO");
+      console.log("🚨 Isso costuma ser rede, DNS, bloqueio HTTP ou app antigo");
+    } else {
+      console.log("🚨 ERRO ANTES DE ENVIAR A REQUISIÇÃO");
     }
 
     return Promise.reject(error);

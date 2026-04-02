@@ -8,21 +8,26 @@ const USER_TYPE_KEY = "@recicleplus_user_type";
 export async function setToken(token: string): Promise<void> {
   const valor = String(token || "").trim();
 
-  await AsyncStorage.setItem(TOKEN_KEY, valor);
-  await AsyncStorage.setItem("token", valor);
+  if (!valor) return;
+
+  await AsyncStorage.multiSet([
+    [TOKEN_KEY, valor],
+    ["token", valor],
+  ]);
 }
 
 export async function getToken(): Promise<string | null> {
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const token =
+    (await AsyncStorage.getItem(TOKEN_KEY)) ||
+    (await AsyncStorage.getItem("token"));
 
-  if (token) return token;
+  if (!token || token.trim() === "") return null;
 
-  return await AsyncStorage.getItem("token");
+  return token;
 }
 
 export async function removeToken(): Promise<void> {
-  await AsyncStorage.removeItem(TOKEN_KEY);
-  await AsyncStorage.removeItem("token");
+  await AsyncStorage.multiRemove([TOKEN_KEY, "token"]);
 }
 
 // ================= TIPO USUÁRIO =================
@@ -30,30 +35,33 @@ export async function removeToken(): Promise<void> {
 export async function setUserType(tipo: string): Promise<void> {
   const valor = String(tipo || "").trim().toUpperCase();
 
-  await AsyncStorage.setItem(USER_TYPE_KEY, valor);
+  if (!valor) return;
 
-  await AsyncStorage.setItem("tipoUsuario", valor);
-  await AsyncStorage.setItem("tipo", valor);
-  await AsyncStorage.setItem("@tipoUsuario", valor);
+  await AsyncStorage.multiSet([
+    [USER_TYPE_KEY, valor],
+    ["tipoUsuario", valor],
+    ["tipo", valor],
+    ["@tipoUsuario", valor],
+  ]);
 }
 
 export async function getUserType(): Promise<string | null> {
-  const tipo1 = await AsyncStorage.getItem(USER_TYPE_KEY);
-  if (tipo1) return tipo1;
+  const tipo =
+    (await AsyncStorage.getItem(USER_TYPE_KEY)) ||
+    (await AsyncStorage.getItem("tipoUsuario")) ||
+    (await AsyncStorage.getItem("tipo")) ||
+    (await AsyncStorage.getItem("@tipoUsuario"));
 
-  const tipo2 = await AsyncStorage.getItem("tipoUsuario");
-  if (tipo2) return tipo2;
+  if (!tipo || tipo.trim() === "") return null;
 
-  const tipo3 = await AsyncStorage.getItem("tipo");
-  if (tipo3) return tipo3;
-
-  return await AsyncStorage.getItem("@tipoUsuario");
+  return tipo;
 }
 
 export async function removeUserType(): Promise<void> {
-  await AsyncStorage.removeItem(USER_TYPE_KEY);
-
-  await AsyncStorage.removeItem("tipoUsuario");
-  await AsyncStorage.removeItem("tipo");
-  await AsyncStorage.removeItem("@tipoUsuario");
+  await AsyncStorage.multiRemove([
+    USER_TYPE_KEY,
+    "tipoUsuario",
+    "tipo",
+    "@tipoUsuario",
+  ]);
 }

@@ -19,13 +19,21 @@ export default function Home() {
 
   async function carregarTipoUsuario() {
     try {
-      const tipoSalvo = await AsyncStorage.getItem("tipoUsuario");
+      const tipoSalvo =
+        (await AsyncStorage.getItem("tipoUsuario")) ||
+        (await AsyncStorage.getItem("@tipoUsuario")) ||
+        (await AsyncStorage.getItem("tipo")) ||
+        "";
 
-      if (tipoSalvo === "COLETOR" || tipoSalvo === "DOADOR") {
-        setTipoUsuario(tipoSalvo);
+      const tipoNormalizado = String(tipoSalvo).trim().toUpperCase();
+
+      if (tipoNormalizado === "COLETOR" || tipoNormalizado === "DOADOR") {
+        setTipoUsuario(tipoNormalizado as TipoUsuario);
       } else {
         setTipoUsuario("DOADOR");
       }
+
+      console.log("✅ TIPO CARREGADO HOME:", tipoNormalizado || "DOADOR");
     } catch (error) {
       console.log("Erro ao carregar tipo do usuário:", error);
       setTipoUsuario("DOADOR");

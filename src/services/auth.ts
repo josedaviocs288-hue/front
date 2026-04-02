@@ -1,6 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { api } from "./api";
-import { setToken, removeToken, setUserType, removeUserType } from "./token";
+import {
+  removeToken,
+  removeUserType,
+  setToken,
+  setUserType,
+} from "./token";
 
 const USER_KEY = "@recicleplus_user";
 
@@ -36,16 +41,9 @@ export interface ApiResponse<T = any> {
   path?: string;
   timestamp?: string;
   traceId?: string;
-
-  token?: string;
-  id?: number;
-  nome?: string;
-  email?: string;
-  cpf?: string;
-  tipo?: string;
 }
 
-export interface LoginResponseData {
+export interface AuthResponseData {
   id?: number;
   nome?: string;
   email?: string;
@@ -69,39 +67,60 @@ function normalizarCpf(cpf: string): string {
 function normalizarTipo(tipo: string): TipoUsuario {
   const valor = String(tipo || "").trim().toUpperCase();
 
-  if (valor === "DOADOR") return "DOADOR";
   if (valor === "COLETOR") return "COLETOR";
+  return "DOADOR";
+}
 
-  return valor as TipoUsuario;
+function extrairAuthData(body: any): AuthResponseData {
+  if (body?.data && typeof body.data === "object") {
+    return {
+      token: body.data.token,
+      id: body.data.id,
+      nome: body.data.nome,
+      email: body.data.email,
+      cpf: body.data.cpf,
+      tipo: body.data.tipo,
+    };
+  }
+
+  return {
+    token: body?.token,
+    id: body?.id,
+    nome: body?.nome,
+    email: body?.email,
+    cpf: body?.cpf,
+    tipo: body?.tipo,
+  };
 }
 
 export async function salvarUsuario(usuario: Usuario): Promise<void> {
-  const tipo = String(usuario.tipo || "").trim().toUpperCase();
-  const nome = String(usuario.nome || "").trim();
-  const email = String(usuario.email || "").trim().toLowerCase();
-
   const usuarioNormalizado: Usuario = {
     ...usuario,
-    nome,
-    email,
-    tipo,
+    nome: String(usuario.nome || "").trim(),
+    email: String(usuario.email || "").trim().toLowerCase(),
+    tipo: normalizarTipo(String(usuario.tipo || "DOADOR")),
+    cpf: usuario.cpf ? normalizarCpf(String(usuario.cpf)) : undefined,
   };
 
   await AsyncStorage.setItem(USER_KEY, JSON.stringify(usuarioNormalizado));
 
-  await AsyncStorage.setItem("nomeUsuario", nome);
-  await AsyncStorage.setItem("emailUsuario", email);
-  await AsyncStorage.setItem("tipoUsuario", tipo);
-  await AsyncStorage.setItem("tipo", tipo);
-  await AsyncStorage.setItem("@tipoUsuario", tipo);
+  await AsyncStorage.multiSet([
+    ["nomeUsuario", usuarioNormalizado.nome],
+    ["emailUsuario", usuarioNormalizado.email],
+    ["tipoUsuario", String(usuarioNormalizado.tipo)],
+    ["tipo", String(usuarioNormalizado.tipo)],
+    ["@tipoUsuario", String(usuarioNormalizado.tipo)],
+  ]);
 
-  if (usuario.id != null) {
-    await AsyncStorage.setItem("usuarioId", String(usuario.id));
-    await AsyncStorage.setItem("idUsuario", String(usuario.id));
+  if (usuarioNormalizado.id != null) {
+    await AsyncStorage.multiSet([
+      ["usuarioId", String(usuarioNormalizado.id)],
+      ["idUsuario", String(usuarioNormalizado.id)],
+    ]);
   }
 
-  if (usuario.cpf) {
-    await AsyncStorage.setItem("cpfUsuario", String(usuario.cpf));
+  if (usuarioNormalizado.cpf) {
+    await AsyncStorage.setItem("cpfUsuario", usuarioNormalizado.cpf);
   }
 }
 
@@ -111,21 +130,23 @@ export async function obterUsuario(): Promise<Usuario | null> {
 }
 
 export async function removerUsuario(): Promise<void> {
-  await AsyncStorage.removeItem(USER_KEY);
-  await AsyncStorage.removeItem("nomeUsuario");
-  await AsyncStorage.removeItem("emailUsuario");
-  await AsyncStorage.removeItem("tipoUsuario");
-  await AsyncStorage.removeItem("tipo");
-  await AsyncStorage.removeItem("@tipoUsuario");
-  await AsyncStorage.removeItem("usuarioId");
-  await AsyncStorage.removeItem("idUsuario");
-  await AsyncStorage.removeItem("cpfUsuario");
+  await AsyncStorage.multiRemove([
+    USER_KEY,
+    "nomeUsuario",
+    "emailUsuario",
+    "tipoUsuario",
+    "tipo",
+    "@tipoUsuario",
+    "usuarioId",
+    "idUsuario",
+    "cpfUsuario",
+  ]);
 }
 
 export async function carregarSessaoSalva(): Promise<void> {
   const token = await AsyncStorage.getItem("@recicleplus_token");
 
-  if (token) {
+  if (token && token.trim() !== "") {
     api.defaults.headers.common.Authorization = `Bearer ${token}`;
     console.log("✅ Token carregado no app");
   } else {
@@ -148,7 +169,7 @@ export async function fazerCadastro(
   cpf: string,
   senha: string,
   tipo: string
-): Promise<ApiResponse> {
+): Promise<ApiResponse<AuthResponseData>> {
   const payload: CadastroRequest = {
     nome: String(nome || "").trim(),
     email: normalizarEmail(email),
@@ -159,14 +180,26 @@ export async function fazerCadastro(
 
   console.log("📤 CADASTRO PAYLOAD:", payload);
 
-  const response = await api.post<ApiResponse>("/auth/register", payload);
+  const response = await api.post<ApiResponse<AuthResponseData>>(
+    "/auth/register",
+    payload
+  );
 
   console.log("📥 CADASTRO RESPONSE:", response.data);
 
-  return response.data;
+  const body = response.data || {};
+  const data = extrairAuthData(body);
+
+  return {
+    ...body,
+    data,
+  };
 }
 
-export async function fazerLogin(email: string, senha: string) {
+export async function fazerLogin(
+  email: string,
+  senha: string
+): Promise<ApiResponse<AuthResponseData>> {
   const payload: LoginRequest = {
     email: normalizarEmail(email),
     senha: normalizarSenha(senha),
@@ -174,7 +207,7 @@ export async function fazerLogin(email: string, senha: string) {
 
   console.log("📤 LOGIN PAYLOAD:", payload);
 
-  const response = await api.post<ApiResponse<LoginResponseData>>(
+  const response = await api.post<ApiResponse<AuthResponseData>>(
     "/auth/login",
     payload
   );
@@ -182,18 +215,7 @@ export async function fazerLogin(email: string, senha: string) {
   console.log("📥 LOGIN RESPONSE BRUTA:", response.data);
 
   const body = response.data || {};
-
-  const data: LoginResponseData =
-    body?.data && typeof body.data === "object"
-      ? body.data
-      : {
-          token: body.token,
-          id: body.id,
-          nome: body.nome,
-          email: body.email,
-          cpf: body.cpf,
-          tipo: body.tipo,
-        };
+  const data = extrairAuthData(body);
 
   const token = String(data?.token || "").trim();
 
@@ -205,12 +227,12 @@ export async function fazerLogin(email: string, senha: string) {
     id: data.id,
     nome: String(data?.nome || "").trim(),
     email: String(data?.email || payload.email).trim().toLowerCase(),
-    cpf: data?.cpf,
-    tipo: normalizarTipo(String(data?.tipo || "")),
+    cpf: data?.cpf ? normalizarCpf(data.cpf) : undefined,
+    tipo: normalizarTipo(String(data?.tipo || "DOADOR")),
   };
 
   await setToken(token);
-  await setUserType(String(usuario.tipo || ""));
+  await setUserType(String(usuario.tipo));
   await salvarUsuario(usuario);
 
   api.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -219,13 +241,14 @@ export async function fazerLogin(email: string, senha: string) {
   console.log("✅ TOKEN SALVO:", token);
 
   return {
+    ...body,
     data: {
       token,
       id: usuario.id,
       nome: usuario.nome,
       email: usuario.email,
       cpf: usuario.cpf,
-      tipo: usuario.tipo,
+      tipo: String(usuario.tipo),
     },
   };
 }

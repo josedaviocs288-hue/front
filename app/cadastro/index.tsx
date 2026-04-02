@@ -1,138 +1,73 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fazerCadastro } from "@/src/services/auth";
-import { api } from "@/src/services/api";
-import { removeToken } from "@/src/services/token";
-import { styles } from "@/src/styles/cadastroStyles";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  Alert,
-  ScrollView,
+  ActivityIndicator,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 
-type TipoTela = "doador" | "coletor" | "";
-
 export default function Cadastro() {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
   const [senha, setSenha] = useState("");
-  const [tipo, setTipo] = useState<TipoTela>("");
+  const [tipo, setTipo] = useState<"DOADOR" | "COLETOR">("DOADOR");
+
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    async function testarBackend() {
-      try {
-        const res = await api.get("/");
-        console.log("✅ BACKEND OK:", res.data);
-      } catch (error: any) {
-        console.log("❌ ERRO BACKEND:");
-        console.log("message:", error?.message);
-        console.log("status:", error?.response?.status);
-        console.log("data:", error?.response?.data);
-      }
-    }
+  function formatarCpf(valor: string) {
+    const numeros = valor.replace(/\D/g, "").slice(0, 11);
 
-    testarBackend();
-  }, []);
-
-  function validarCPF(valor: string): boolean {
-    const clean = valor.replace(/\D/g, "");
-
-    if (clean.length !== 11 || /^(\d)\1+$/.test(clean)) {
-      return false;
-    }
-
-    let soma = 0;
-    let resto = 0;
-
-    for (let i = 1; i <= 9; i++) {
-      soma += parseInt(clean.substring(i - 1, i), 10) * (11 - i);
-    }
-
-    resto = (soma * 10) % 11;
-    if (resto === 10 || resto === 11) resto = 0;
-    if (resto !== parseInt(clean.substring(9, 10), 10)) {
-      return false;
-    }
-
-    soma = 0;
-
-    for (let i = 1; i <= 10; i++) {
-      soma += parseInt(clean.substring(i - 1, i), 10) * (12 - i);
-    }
-
-    resto = (soma * 10) % 11;
-    if (resto === 10 || resto === 11) resto = 0;
-
-    return resto === parseInt(clean.substring(10, 11), 10);
+    return numeros
+      .replace(/^(\d{3})(\d)/, "$1.$2")
+      .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1-$2");
   }
 
-  function validarEmail(valor: string): boolean {
-    return /\S+@\S+\.\S+/.test(valor.trim().toLowerCase());
-  }
-
-  function formatarCPF(value: string) {
-    let v = value.replace(/\D/g, "");
-    v = v.slice(0, 11);
-    v = v.replace(/(\d{3})(\d)/, "$1.$2");
-    v = v.replace(/(\d{3})(\d)/, "$1.$2");
-    v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-    setCpf(v);
-  }
-
-  async function cadastrar() {
+  async function handleCadastro() {
     if (loading) return;
+
+    setError("");
 
     const nomeLimpo = nome.trim();
     const emailLimpo = email.trim().toLowerCase();
     const cpfLimpo = cpf.replace(/\D/g, "");
     const senhaLimpa = senha.trim();
+    const tipoLimpo = tipo.trim().toUpperCase();
 
-    if (!nomeLimpo || !emailLimpo || !cpfLimpo || !senhaLimpa || !tipo) {
-      Alert.alert("Erro", "Preencha todos os campos.");
+    if (!nomeLimpo || !emailLimpo || !cpfLimpo || !senhaLimpa) {
+      setError("Preencha todos os campos.");
       return;
     }
 
-    if (nomeLimpo.length < 2) {
-      Alert.alert("Erro", "Digite um nome válido.");
+    if (!/\S+@\S+\.\S+/.test(emailLimpo)) {
+      setError("Digite um e-mail válido.");
       return;
     }
 
-    if (!validarEmail(emailLimpo)) {
-      Alert.alert("Erro", "Digite um e-mail válido.");
-      return;
-    }
-
-    if (!validarCPF(cpfLimpo)) {
-      Alert.alert("Erro", "CPF inválido.");
+    if (cpfLimpo.length !== 11) {
+      setError("Digite um CPF válido com 11 números.");
       return;
     }
 
     if (senhaLimpa.length < 6) {
-      Alert.alert("Erro", "A senha deve ter pelo menos 6 caracteres.");
+      setError("A senha deve ter pelo menos 6 caracteres.");
       return;
     }
-
-    const tipoBackend = tipo === "doador" ? "DOADOR" : "COLETOR";
 
     try {
       setLoading(true);
 
-      await removeToken();
-      delete api.defaults.headers.common.Authorization;
-
-      console.log("📤 DADOS TELA CADASTRO:", {
+      console.log("📤 CADASTRO:", {
         nome: nomeLimpo,
         email: emailLimpo,
         cpf: cpfLimpo,
         senha: senhaLimpa,
-        tipoTela: tipo,
-        tipoBackend,
+        tipo: tipoLimpo,
       });
 
       const resposta = await fazerCadastro(
@@ -140,142 +75,250 @@ export default function Cadastro() {
         emailLimpo,
         cpfLimpo,
         senhaLimpa,
-        tipoBackend
+        tipoLimpo
       );
 
       console.log("✅ CADASTRO OK:", resposta);
 
-      await AsyncStorage.multiSet([
-        ["nomeUsuario", nomeLimpo],
-        ["emailUsuario", emailLimpo],
-        ["cpfUsuario", cpfLimpo],
-        ["tipoUsuario", tipoBackend],
-      ]);
+      router.replace("/login");
+    } catch (err: any) {
+      console.log("❌ ERRO CADASTRO COMPLETO:", err);
+      console.log("❌ STATUS CADASTRO:", err?.response?.status);
+      console.log("❌ DATA CADASTRO:", err?.response?.data);
+      console.log("❌ MESSAGE CADASTRO:", err?.message);
 
-      console.log("✅ TIPO SALVO NO CADASTRO:", tipoBackend);
-
-      Alert.alert(
-        "Sucesso",
-        resposta?.message || "Cadastro realizado com sucesso!",
-        [
-          {
-            text: "OK",
-            onPress: () => router.replace("/login"),
-          },
-        ]
-      );
-    } catch (error: any) {
-      console.log("❌ ERRO CADASTRO:", error?.response?.data || error?.message);
-
-      if (error?.response?.status === 409) {
-        Alert.alert(
-          "Erro",
-          error?.response?.data?.message || "E-mail ou CPF já cadastrado."
+      if (err?.response?.status === 400) {
+        setError(
+          err?.response?.data?.message ||
+            err?.response?.data?.errors?.email ||
+            err?.response?.data?.errors?.cpf ||
+            err?.response?.data?.errors?.senha ||
+            "Dados inválidos."
         );
-        return;
+      } else if (err?.response?.status === 409) {
+        setError(
+          err?.response?.data?.message || "E-mail ou CPF já cadastrados."
+        );
+      } else if (!err?.response) {
+        setError("Sem conexão com o servidor.");
+      } else {
+        setError(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Erro ao fazer cadastro."
+        );
       }
-
-      const mensagem =
-        error?.response?.data?.message ||
-        error?.message ||
-        "Erro ao cadastrar.";
-
-      Alert.alert("Erro", mensagem);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Cadastro</Text>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "#f2f2f2",
+        padding: 20,
+        justifyContent: "center",
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 28,
+          fontWeight: "bold",
+          textAlign: "center",
+          marginBottom: 30,
+          color: "#222",
+        }}
+      >
+        RECICLE+
+      </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Nome completo"
-          placeholderTextColor="#8a8a8a"
-          value={nome}
-          onChangeText={setNome}
-          editable={!loading}
-        />
+      <Text style={{ color: "#222", marginBottom: 6 }}>Nome</Text>
+      <TextInput
+        value={nome}
+        onChangeText={setNome}
+        placeholder="Digite seu nome"
+        placeholderTextColor="#666"
+        autoCapitalize="words"
+        editable={!loading}
+        style={{
+          borderWidth: 1,
+          borderColor: "#999",
+          backgroundColor: "#fff",
+          marginBottom: 15,
+          padding: 12,
+          borderRadius: 8,
+          color: "#222",
+        }}
+      />
 
-        <TextInput
-          style={styles.input}
-          placeholder="E-mail"
-          placeholderTextColor="#8a8a8a"
-          keyboardType="email-address"
-          autoCapitalize="none"
-          autoCorrect={false}
-          value={email}
-          onChangeText={setEmail}
-          editable={!loading}
-        />
+      <Text style={{ color: "#222", marginBottom: 6 }}>Email</Text>
+      <TextInput
+        value={email}
+        onChangeText={setEmail}
+        placeholder="Digite seu email"
+        placeholderTextColor="#666"
+        autoCapitalize="none"
+        autoCorrect={false}
+        keyboardType="email-address"
+        editable={!loading}
+        style={{
+          borderWidth: 1,
+          borderColor: "#999",
+          backgroundColor: "#fff",
+          marginBottom: 15,
+          padding: 12,
+          borderRadius: 8,
+          color: "#222",
+        }}
+      />
 
-        <TextInput
-          style={styles.input}
-          placeholder="CPF"
-          placeholderTextColor="#8a8a8a"
-          keyboardType="numeric"
-          value={cpf}
-          maxLength={14}
-          onChangeText={formatarCPF}
-          editable={!loading}
-        />
+      <Text style={{ color: "#222", marginBottom: 6 }}>CPF</Text>
+      <TextInput
+        value={cpf}
+        onChangeText={(texto) => setCpf(formatarCpf(texto))}
+        placeholder="Digite seu CPF"
+        placeholderTextColor="#666"
+        keyboardType="numeric"
+        maxLength={14}
+        editable={!loading}
+        style={{
+          borderWidth: 1,
+          borderColor: "#999",
+          backgroundColor: "#fff",
+          marginBottom: 15,
+          padding: 12,
+          borderRadius: 8,
+          color: "#222",
+        }}
+      />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Senha"
-          placeholderTextColor="#8a8a8a"
-          secureTextEntry
-          value={senha}
-          onChangeText={setSenha}
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!loading}
-        />
+      <Text style={{ color: "#222", marginBottom: 6 }}>Senha</Text>
+      <TextInput
+        value={senha}
+        onChangeText={setSenha}
+        placeholder="Digite sua senha"
+        placeholderTextColor="#666"
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+        editable={!loading}
+        style={{
+          borderWidth: 1,
+          borderColor: "#999",
+          backgroundColor: "#fff",
+          marginBottom: 15,
+          padding: 12,
+          borderRadius: 8,
+          color: "#222",
+        }}
+      />
 
-        <View style={styles.selectContainer}>
-          <TouchableOpacity
-            style={[
-              styles.option,
-              tipo === "doador" && styles.optionActive,
-            ]}
-            onPress={() => setTipo("doador")}
-            disabled={loading}
-          >
-            <Text style={styles.optionText}>Doador</Text>
-          </TouchableOpacity>
+      <Text style={{ color: "#222", marginBottom: 8 }}>Tipo de usuário</Text>
 
-          <TouchableOpacity
-            style={[
-              styles.option,
-              tipo === "coletor" && styles.optionActive,
-            ]}
-            onPress={() => setTipo("coletor")}
-            disabled={loading}
-          >
-            <Text style={styles.optionText}>Coletor</Text>
-          </TouchableOpacity>
-        </View>
-
+      <View style={{ flexDirection: "row", marginBottom: 10 }}>
         <TouchableOpacity
-          style={styles.button}
-          onPress={cadastrar}
+          onPress={() => setTipo("DOADOR")}
           disabled={loading}
+          style={{
+            flex: 1,
+            backgroundColor: tipo === "DOADOR" ? "orange" : "#fff",
+            padding: 12,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#999",
+            marginRight: 5,
+          }}
         >
-          <Text style={styles.buttonText}>
-            {loading ? "Cadastrando..." : "Cadastrar"}
+          <Text
+            style={{
+              textAlign: "center",
+              color: tipo === "DOADOR" ? "#fff" : "#222",
+              fontWeight: "bold",
+            }}
+          >
+            DOADOR
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => router.replace("/login")}
+          onPress={() => setTipo("COLETOR")}
           disabled={loading}
+          style={{
+            flex: 1,
+            backgroundColor: tipo === "COLETOR" ? "orange" : "#fff",
+            padding: 12,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: "#999",
+            marginLeft: 5,
+          }}
         >
-          <Text style={styles.link}>Já tem conta? Faça login</Text>
+          <Text
+            style={{
+              textAlign: "center",
+              color: tipo === "COLETOR" ? "#fff" : "#222",
+              fontWeight: "bold",
+            }}
+          >
+            COLETOR
+          </Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+
+      {error ? (
+        <Text
+          style={{
+            color: "red",
+            marginBottom: 10,
+            textAlign: "center",
+          }}
+        >
+          {error}
+        </Text>
+      ) : null}
+
+      <TouchableOpacity
+        onPress={handleCadastro}
+        disabled={loading}
+        style={{
+          backgroundColor: "orange",
+          padding: 15,
+          marginTop: 10,
+          borderRadius: 8,
+          opacity: loading ? 0.7 : 1,
+        }}
+      >
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text
+            style={{
+              textAlign: "center",
+              color: "#fff",
+              fontWeight: "bold",
+            }}
+          >
+            Cadastrar
+          </Text>
+        )}
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        onPress={() => router.replace("/login")}
+        disabled={loading}
+      >
+        <Text
+          style={{
+            marginTop: 15,
+            textAlign: "center",
+            color: "#222",
+          }}
+        >
+          Já tem conta? Entrar
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 }
