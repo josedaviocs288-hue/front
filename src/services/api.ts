@@ -5,7 +5,7 @@ import axios, {
 } from "axios";
 import { getToken, removeToken, removeUserType } from "./token";
 
-const baseURL = "http://reciclemais.app.br";
+const baseURL = "https://reciclemais.app.br";
 
 console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 console.log("🚀 BASE URL DEFINIDA:", baseURL);

@@ -26,4 +26,4 @@ export async function getTop10(tipo: "pontos" | "coletas") {
 
     throw error;
   }
-}
+}//tudo funcionando e muito e massa
