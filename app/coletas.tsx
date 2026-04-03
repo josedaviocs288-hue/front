@@ -1,7 +1,6 @@
 import { getUserType } from "@/src/services/token";
 import { api } from "@/src/services/api";
-import { useCallback, useMemo, useState } from "react";
-import { useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -47,7 +46,6 @@ type Doacao = {
   materiais?: string[] | string | null;
   dataHoraSolicitada?: string | null;
   criadoEm?: string | null;
-  createdAt?: string | null;
   user?: Usuario | null;
 };
 
@@ -56,7 +54,6 @@ type ApiResponse<T> = {
   message?: string;
   data?: T;
   timestamp?: string;
-  status?: string;
 };
 
 type AcaoStatus = "ACEITAR" | "EM_ROTA" | "CONCLUIR";
@@ -70,11 +67,34 @@ export default function ColetasScreen() {
   const [erro, setErro] = useState("");
   const [atualizandoId, setAtualizandoId] = useState<number | null>(null);
 
-  const extrairListaDoacoes = (payload: any): Doacao[] => {
-    if (Array.isArray(payload)) return payload;
-    if (Array.isArray(payload?.data)) return payload.data;
-    if (Array.isArray(payload?.content)) return payload.content;
-    if (Array.isArray(payload?.doacoes)) return payload.doacoes;
+  useEffect(() => {
+    async function carregarTipo() {
+      try {
+        const tipo = await getUserType();
+        const normalizado = String(tipo || "").trim().toUpperCase();
+
+        console.log("🔥 TIPO USUARIO SALVO:", normalizado);
+        setTipoUsuario(normalizado || "DOADOR");
+      } catch (error) {
+        console.log("❌ ERRO AO LER TIPO USUARIO:", error);
+        setTipoUsuario("DOADOR");
+      } finally {
+        setCarregandoTipo(false);
+      }
+    }
+
+    carregarTipo();
+  }, []);
+
+  const extrairListaDoacoes = (payload: unknown): Doacao[] => {
+    if (Array.isArray(payload)) return payload as Doacao[];
+
+    const obj = payload as any;
+
+    if (Array.isArray(obj?.data)) return obj.data;
+    if (Array.isArray(obj?.content)) return obj.content;
+    if (Array.isArray(obj?.doacoes)) return obj.doacoes;
+
     return [];
   };
 
@@ -82,92 +102,49 @@ export default function ColetasScreen() {
     return (
       error?.response?.data?.message ||
       error?.response?.data?.detail ||
-      error?.response?.data?.error ||
       error?.message ||
       "Não foi possível concluir a operação."
     );
   };
-
-  const carregarTipoUsuario = useCallback(async () => {
-    try {
-      setCarregandoTipo(true);
-
-      const tipo = await getUserType();
-      const normalizado = String(tipo || "").trim().toUpperCase();
-
-      console.log("🔥 TIPO USUÁRIO DETECTADO:", normalizado);
-      setTipoUsuario(normalizado || "DOADOR");
-    } catch (error) {
-      console.log("❌ ERRO AO LER TIPO USUÁRIO:", error);
-      setTipoUsuario("DOADOR");
-    } finally {
-      setCarregandoTipo(false);
-    }
-  }, []);
 
   const carregarDoacoes = useCallback(async (silencioso = false) => {
     try {
       if (!silencioso) setLoading(true);
       setErro("");
 
-      console.log("📥 BUSCANDO /doacoes ...");
+      const response = await api.get<ApiResponse<Doacao[]>>("/doacoes");
 
-      const response = await api.get("/doacoes");
+      console.log("🔥 RESPOSTA BRUTA /doacoes:", response.data);
 
-      console.log("✅ RESPOSTA BRUTA /doacoes:", JSON.stringify(response.data, null, 2));
-
-      const sucesso = response?.data?.success;
-      const lista = extrairListaDoacoes(response?.data?.data ?? response?.data);
+      const sucesso = response.data?.success;
+      const lista = extrairListaDoacoes(response.data?.data ?? response.data);
 
       if (sucesso === false) {
-        throw new Error(response?.data?.message || "Não foi possível carregar as doações.");
+        throw new Error(response.data?.message || "Não foi possível carregar as doações.");
       }
 
-      const listaNormalizada = (lista || []).map((item: Doacao) => ({
-        ...item,
-        status: String(item?.status || "PENDENTE").trim().toUpperCase(),
-      }));
+      console.log("🔥 DOACOES TRATADAS:", lista);
+      console.log("🔥 TOTAL DE DOACOES:", lista.length);
 
-      console.log("📦 DOAÇÕES TRATADAS:", JSON.stringify(listaNormalizada, null, 2));
-      console.log("📊 TOTAL:", listaNormalizada.length);
-
-      setDoacoes(listaNormalizada);
+      setDoacoes(lista);
     } catch (error: any) {
-      console.log("❌ ERRO AO CARREGAR DOAÇÕES:", error?.response?.data || error?.message || error);
+      console.log("❌ ERRO DOACOES:", error?.response?.data || error?.message || error);
       setErro(extrairMensagemErro(error));
-      setDoacoes([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      let ativo = true;
+  useEffect(() => {
+    if (carregandoTipo) return;
 
-      async function iniciar() {
-        await carregarTipoUsuario();
-
-        const tipo = await getUserType();
-        const normalizado = String(tipo || "").trim().toUpperCase();
-
-        if (!ativo) return;
-
-        if (normalizado === "COLETOR") {
-          await carregarDoacoes();
-        } else {
-          setLoading(false);
-        }
-      }
-
-      iniciar();
-
-      return () => {
-        ativo = false;
-      };
-    }, [carregarTipoUsuario, carregarDoacoes])
-  );
+    if (tipoUsuario === "COLETOR") {
+      carregarDoacoes();
+    } else {
+      setLoading(false);
+    }
+  }, [tipoUsuario, carregandoTipo, carregarDoacoes]);
 
   function onRefresh() {
     setRefreshing(true);
@@ -176,21 +153,13 @@ export default function ColetasScreen() {
 
   function formatarData(data?: string | null) {
     if (!data) return "Não informado";
-
     const d = new Date(data);
     if (Number.isNaN(d.getTime())) return data;
-
     return d.toLocaleString("pt-BR");
   }
 
   function montarEndereco(doacao: Doacao) {
-    const partes = [
-      doacao.rua,
-      doacao.numero,
-      doacao.bairro,
-      doacao.cidade,
-      doacao.uf,
-    ]
+    const partes = [doacao.rua, doacao.numero, doacao.bairro, doacao.cidade, doacao.uf]
       .map((item) => (item ?? "").toString().trim())
       .filter(Boolean);
 
@@ -201,15 +170,17 @@ export default function ColetasScreen() {
     if (!materiais) return "Não informado";
 
     if (Array.isArray(materiais)) {
-      return materiais.length ? materiais.join(", ") : "Não informado";
+      return materiais.length > 0 ? materiais.join(", ") : "Não informado";
     }
 
     if (typeof materiais === "string") {
+      if (!materiais.trim()) return "Não informado";
+
       return materiais
         .split(",")
         .map((item) => item.trim())
         .filter(Boolean)
-        .join(", ") || "Não informado";
+        .join(", ");
     }
 
     return "Não informado";
@@ -238,11 +209,9 @@ export default function ColetasScreen() {
   }
 
   function atualizarListaLocal(id: number, novoStatus: string) {
-    const statusNormalizado = String(novoStatus || "").trim().toUpperCase();
-
     setDoacoes((listaAtual) =>
       listaAtual.map((item) =>
-        item.id === id ? { ...item, status: statusNormalizado } : item
+        item.id === id ? { ...item, status: novoStatus } : item
       )
     );
   }
@@ -250,6 +219,8 @@ export default function ColetasScreen() {
   async function atualizarStatus(id: number, acao: AcaoStatus) {
     try {
       setAtualizandoId(id);
+
+      console.log("🚀 CLIQUE BOTÃO:", acao, "ID:", id);
 
       let rota = "";
       let proximoStatus = "";
@@ -265,23 +236,17 @@ export default function ColetasScreen() {
         proximoStatus = "CONCLUIDA";
       }
 
-      console.log("🚀 ATUALIZANDO STATUS:", { id, acao, rota });
+      console.log("➡️ CHAMANDO ROTA:", rota);
 
       const response = await api.patch<ApiResponse<any>>(rota);
 
-      console.log("✅ RESPOSTA STATUS:", JSON.stringify(response.data, null, 2));
+      console.log("✅ STATUS ATUALIZADO:", response.data);
 
       if (response.data?.success === false) {
         throw new Error(response.data?.message || "Não foi possível atualizar a doação.");
       }
 
-      const statusReal = String(
-        response.data?.data?.status ||
-          response.data?.status ||
-          proximoStatus
-      )
-        .trim()
-        .toUpperCase();
+      const statusReal = response.data?.data?.status || proximoStatus;
 
       atualizarListaLocal(id, statusReal);
 
@@ -293,7 +258,11 @@ export default function ColetasScreen() {
 
       await carregarDoacoes(true);
     } catch (error: any) {
-      console.log("❌ ERRO AO ATUALIZAR STATUS:", error?.response?.data || error?.message || error);
+      console.log(
+        "❌ ERRO STATUS COMPLETO:",
+        error?.response?.data || error?.message || error
+      );
+
       Alert.alert("Erro", extrairMensagemErro(error));
     } finally {
       setAtualizandoId(null);
@@ -301,7 +270,7 @@ export default function ColetasScreen() {
   }
 
   function corStatus(status?: string) {
-    switch (String(status || "").toUpperCase()) {
+    switch (status) {
       case "PENDENTE":
         return "#f59e0b";
       case "ACEITA":
@@ -319,19 +288,19 @@ export default function ColetasScreen() {
   }
 
   const doacoesAtivas = useMemo(() => {
-    return doacoes.filter((item) => {
-      const status = String(item.status || "").toUpperCase();
-      return status !== "CONCLUIDA" && status !== "CANCELADA";
-    });
+    return doacoes.filter(
+      (item) => item.status !== "CONCLUIDA" && item.status !== "CANCELADA"
+    );
   }, [doacoes]);
 
   function renderBotoes(item: Doacao, processando: boolean) {
-    const status = String(item.status || "").toUpperCase();
-
     if (!item?.id) return null;
-    if (status === "CONCLUIDA" || status === "CANCELADA") return null;
 
-    if (status === "PENDENTE") {
+    if (item.status === "CONCLUIDA" || item.status === "CANCELADA") {
+      return null;
+    }
+
+    if (item.status === "PENDENTE") {
       return (
         <TouchableOpacity
           style={[
@@ -350,7 +319,7 @@ export default function ColetasScreen() {
       );
     }
 
-    if (status === "ACEITA") {
+    if (item.status === "ACEITA") {
       return (
         <TouchableOpacity
           style={[
@@ -369,7 +338,7 @@ export default function ColetasScreen() {
       );
     }
 
-    if (status === "EM_ROTA" || status === "EM_ANDAMENTO") {
+    if (item.status === "EM_ROTA" || item.status === "EM_ANDAMENTO") {
       return (
         <TouchableOpacity
           style={[
@@ -403,9 +372,7 @@ export default function ColetasScreen() {
         <View style={styles.cardTop}>
           <Text style={styles.nomeDoador}>{nomeDoador}</Text>
           <View style={[styles.badge, { backgroundColor: corStatus(item.status) }]}>
-            <Text style={styles.badgeText}>
-              {String(item.status || "PENDENTE").toUpperCase()}
-            </Text>
+            <Text style={styles.badgeText}>{item.status || "PENDENTE"}</Text>
           </View>
         </View>
 
@@ -436,7 +403,7 @@ export default function ColetasScreen() {
 
         <Text style={styles.info}>
           <Text style={styles.label}>Solicitada em: </Text>
-          {formatarData(item.dataHoraSolicitada || item.criadoEm || item.createdAt)}
+          {formatarData(item.dataHoraSolicitada || item.criadoEm)}
         </Text>
 
         <View style={styles.actionRow}>{renderBotoes(item, processando)}</View>
