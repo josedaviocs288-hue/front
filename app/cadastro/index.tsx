@@ -242,16 +242,17 @@ export default function Cadastro() {
               height: 56,
               borderRadius: 10,
               borderWidth: 1.5,
-              borderColor: "#39B89B",
-              backgroundColor: "#F7F7F7",
+              borderColor: tipo === "DOADOR" ? "#0B6B59" : "#39B89B",
+              backgroundColor: tipo === "DOADOR" ? "#0B6B59" : "#F7F7F7",
               justifyContent: "center",
               alignItems: "center",
               marginRight: 8,
+              opacity: loading ? 0.7 : 1,
             }}
           >
             <Text
               style={{
-                color: "#2CA98D",
+                color: tipo === "DOADOR" ? "#FFFFFF" : "#2CA98D",
                 fontWeight: "600",
                 fontSize: 16,
               }}
@@ -268,16 +269,17 @@ export default function Cadastro() {
               height: 56,
               borderRadius: 10,
               borderWidth: 1.5,
-              borderColor: "#39B89B",
-              backgroundColor: "#F7F7F7",
+              borderColor: tipo === "COLETOR" ? "#0B6B59" : "#39B89B",
+              backgroundColor: tipo === "COLETOR" ? "#0B6B59" : "#F7F7F7",
               justifyContent: "center",
               alignItems: "center",
               marginLeft: 8,
+              opacity: loading ? 0.7 : 1,
             }}
           >
             <Text
               style={{
-                color: "#2CA98D",
+                color: tipo === "COLETOR" ? "#FFFFFF" : "#2CA98D",
                 fontWeight: "600",
                 fontSize: 16,
               }}
