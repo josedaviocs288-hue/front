@@ -6,18 +6,18 @@ export default function RootLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="home" />
       <Stack.Screen name="coletas" />
-      <Stack.Screen name="login/index" />
-      <Stack.Screen name="cadastro/index" />
-      <Stack.Screen name="perfil/index" />
-      <Stack.Screen name="configuracao/index" />
-      <Stack.Screen name="doacao/index" />
-      <Stack.Screen name="doacao/casa/index" />
-      <Stack.Screen name="doacao/fixa/index" />
-      <Stack.Screen name="notificacoes/index" />
-      <Stack.Screen name="ranking/index" />
-      <Stack.Screen name="avaliacao/index" />
-      <Stack.Screen name="chat/index" />
-      <Stack.Screen name="onboarding/index" />
+      <Stack.Screen name="login" />
+      <Stack.Screen name="cadastro" />
+      <Stack.Screen name="perfil" />
+      <Stack.Screen name="configuracao" />
+      <Stack.Screen name="doacao" />
+      <Stack.Screen name="doacao/casa" />
+      <Stack.Screen name="doacao/fixa" />
+      <Stack.Screen name="notificacoes" />
+      <Stack.Screen name="ranking" />
+      <Stack.Screen name="avaliacao" />
+      <Stack.Screen name="chat" />
+      <Stack.Screen name="onboarding" />
     </Stack>
   );
 }
