@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Mapbox from "@rnmapbox/maps";
+import { Client } from "@stomp/stompjs";
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -14,6 +15,7 @@ import {
 import { api } from "@/src/services/api";
 
 const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+const wsUrl = process.env.EXPO_PUBLIC_WS_URL;
 
 if (mapboxToken) {
   Mapbox.setAccessToken(mapboxToken);
@@ -69,9 +71,19 @@ type RastreamentoApiResponse = {
   data?: RastreamentoData;
 };
 
+type LocalizacaoWSMessage = {
+  doacaoId?: number;
+  coletaId?: number;
+  latitude?: number;
+  longitude?: number;
+  coletorLatitude?: number;
+  coletorLongitude?: number;
+};
+
 type Props = {
   tipoUsuario?: TipoUsuario;
   onAcaoPrincipal?: () => void;
+  menuOpen?: boolean;
 };
 
 const ROTA_DOACAO = "/doacao/casa";
@@ -80,8 +92,10 @@ const ROTA_COLETAS = "/coletas";
 export default function MapaHome({
   tipoUsuario: tipoUsuarioProp,
   onAcaoPrincipal,
+  menuOpen = false,
 }: Props) {
   const cameraRef = useRef<any>(null);
+  const wsClientRef = useRef<Client | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -129,7 +143,10 @@ export default function MapaHome({
       setTipoUsuario(tipoUsuarioProp);
     } else {
       try {
-        const tipoSalvo = await AsyncStorage.getItem("tipoUsuario");
+        const tipoSalvo =
+          (await AsyncStorage.getItem("tipoUsuario")) ||
+          (await AsyncStorage.getItem("@tipoUsuario")) ||
+          (await AsyncStorage.getItem("tipo"));
 
         if (tipoSalvo === "COLETOR" || tipoSalvo === "DOADOR") {
           setTipoUsuario(tipoSalvo);
@@ -145,7 +162,9 @@ export default function MapaHome({
     }
 
     try {
-      const emailDireto = await AsyncStorage.getItem("emailUsuario");
+      const emailDireto =
+        (await AsyncStorage.getItem("emailUsuario")) ||
+        (await AsyncStorage.getItem("@emailUsuario"));
       const userJson = await AsyncStorage.getItem("@recicleplus_user");
 
       let emailDoUsuario: string | null = null;
@@ -157,13 +176,93 @@ export default function MapaHome({
       }
 
       const emailSalvo = emailDireto || emailDoUsuario;
-
       setEmailUsuario(emailSalvo ? String(emailSalvo).toLowerCase() : null);
     } catch (error) {
       console.log("Erro ao carregar email do usuário:", error);
       setEmailUsuario(null);
     }
   }, [tipoUsuarioProp]);
+
+  const desconectarWebSocket = useCallback(() => {
+    if (wsClientRef.current) {
+      try {
+        wsClientRef.current.deactivate();
+      } catch (error) {
+        console.log("Erro ao desconectar WS:", error);
+      } finally {
+        wsClientRef.current = null;
+      }
+    }
+  }, []);
+
+  const conectarWebSocket = useCallback(async () => {
+    if (!doacaoAtivaId || !wsUrl) return;
+
+    try {
+      desconectarWebSocket();
+
+      const token =
+        (await AsyncStorage.getItem("@recicleplus_token")) ||
+        (await AsyncStorage.getItem("token"));
+
+      if (!token) {
+        console.log("WS cancelado: token não encontrado.");
+        return;
+      }
+
+      const client = new Client({
+        brokerURL: wsUrl,
+        connectHeaders: {
+          Authorization: `Bearer ${token}`,
+        },
+        reconnectDelay: 5000,
+        debug: (msg) => console.log("WS:", msg),
+      });
+
+      client.onConnect = () => {
+        console.log("📡 WebSocket conectado");
+
+        if (tipoUsuario === "DOADOR") {
+          client.subscribe(
+            `/topic/coletas/${doacaoAtivaId}/localizacao`,
+            (message) => {
+              try {
+                const data: LocalizacaoWSMessage = JSON.parse(message.body);
+
+                const latitude = data.latitude ?? data.coletorLatitude ?? null;
+                const longitude =
+                  data.longitude ?? data.coletorLongitude ?? null;
+
+                if (latitude !== null && longitude !== null) {
+                  setLocalizacaoColetor({
+                    latitude: Number(latitude),
+                    longitude: Number(longitude),
+                  });
+                  setTrackingAtivo(true);
+                }
+              } catch (error) {
+                console.log("Erro ao ler mensagem WS:", error);
+              }
+            }
+          );
+        }
+      };
+
+      client.onStompError = (frame) => {
+        console.log("Erro STOMP:", frame.headers["message"]);
+        console.log("Detalhes STOMP:", frame.body);
+      };
+
+      client.onWebSocketError = (event) => {
+        console.log("Erro no WebSocket:", event);
+      };
+
+      client.activate();
+      wsClientRef.current = client;
+    } catch (error) {
+      console.log("Erro ao conectar WS:", error);
+    }
+  }, [doacaoAtivaId, wsUrl, tipoUsuario, desconectarWebSocket]);
 
   const enviarMinhaLocalizacao = useCallback(
     async (coords: Coordenada, doacaoId: number | null) => {
@@ -174,6 +273,20 @@ export default function MapaHome({
           latitude: coords.latitude,
           longitude: coords.longitude,
         });
+
+        if (wsClientRef.current?.connected) {
+          wsClientRef.current.publish({
+            destination: `/app/coletas/${doacaoId}/localizacao`,
+            body: JSON.stringify({
+              latitude: coords.latitude,
+              longitude: coords.longitude,
+            }),
+          });
+
+          console.log("📍 Localização enviada via WS");
+        } else {
+          console.log("WS ainda não conectado para publicar localização");
+        }
       } catch (error) {
         console.log("Erro ao enviar localização do coletor:", error);
       }
@@ -481,6 +594,21 @@ export default function MapaHome({
 
   useEffect(() => {
     if (
+      doacaoAtivaId &&
+      (tipoUsuario === "DOADOR" || tipoUsuario === "COLETOR")
+    ) {
+      conectarWebSocket();
+    } else {
+      desconectarWebSocket();
+    }
+
+    return () => {
+      desconectarWebSocket();
+    };
+  }, [tipoUsuario, doacaoAtivaId, conectarWebSocket, desconectarWebSocket]);
+
+  useEffect(() => {
+    if (
       tipoUsuario === "COLETOR" &&
       trackingAtivo &&
       minhaLocalizacao &&
@@ -641,47 +769,55 @@ export default function MapaHome({
         )}
       </Mapbox.MapView>
 
-      <View style={styles.bottomPanel}>
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, styles.legendMe]} />
-          <Text style={styles.legendText}>
-            {tipoUsuario === "COLETOR" ? "Minha posição" : "Sua posição"}
-          </Text>
-        </View>
-
-        <View style={styles.legendRow}>
-          <View style={[styles.legendDot, styles.legendHome]} />
-          <Text style={styles.legendText}>{destinoDescricao}</Text>
-        </View>
-
-        {tipoUsuario === "DOADOR" && (
+      {!menuOpen && (
+        <View style={styles.bottomPanel}>
           <View style={styles.legendRow}>
-            <View style={[styles.legendDot, styles.legendCollector]} />
-            <Text style={styles.legendText}>{coletorDescricao}</Text>
+            <View style={[styles.legendDot, styles.legendMe]} />
+            <Text style={styles.legendText}>
+              {tipoUsuario === "COLETOR" ? "Minha posição" : "Sua posição"}
+            </Text>
           </View>
-        )}
 
-        {tipoUsuario === "COLETOR" && trackingAtivo && rotaGeoJSON && (
           <View style={styles.legendRow}>
-            <View style={styles.routeLinePreview} />
-            <Text style={styles.legendText}>Rota até o destino</Text>
+            <View style={[styles.legendDot, styles.legendHome]} />
+            <Text style={styles.legendText}>{destinoDescricao}</Text>
           </View>
-        )}
 
-        <TouchableOpacity
-          style={styles.primaryActionButton}
-          onPress={onAcaoPrincipal || irParaAcaoPrincipal}
-        >
-          <Text style={styles.primaryActionText}>{textoBotaoPrincipal}</Text>
-        </TouchableOpacity>
+          {tipoUsuario === "DOADOR" && (
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, styles.legendCollector]} />
+              <Text style={styles.legendText}>{coletorDescricao}</Text>
+            </View>
+          )}
 
-        <TouchableOpacity
-          style={styles.secondaryActionButton}
-          onPress={centralizarMapa}
-        >
-          <Text style={styles.secondaryActionText}>Centralizar mapa</Text>
-        </TouchableOpacity>
-      </View>
+          {!!textoStatus && (
+            <View style={styles.legendRow}>
+              <Text style={styles.legendStatus}>{textoStatus}</Text>
+            </View>
+          )}
+
+          {tipoUsuario === "COLETOR" && trackingAtivo && rotaGeoJSON && (
+            <View style={styles.legendRow}>
+              <View style={styles.routeLinePreview} />
+              <Text style={styles.legendText}>Rota até o destino</Text>
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.primaryActionButton}
+            onPress={onAcaoPrincipal || irParaAcaoPrincipal}
+          >
+            <Text style={styles.primaryActionText}>{textoBotaoPrincipal}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryActionButton}
+            onPress={centralizarMapa}
+          >
+            <Text style={styles.secondaryActionText}>Centralizar mapa</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -734,36 +870,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  infoCardTop: {
-    position: "absolute",
-    top: 16,
-    left: 16,
-    right: 16,
-    zIndex: 20,
-    backgroundColor: "rgba(255,255,255,0.96)",
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-
-  infoTitle: {
-    fontSize: 17,
-    fontWeight: "800",
-    color: "#111827",
-    marginBottom: 4,
-  },
-
-  infoSubtitle: {
-    fontSize: 14,
-    color: "#4b5563",
-    lineHeight: 20,
-  },
-
   markerWrapper: {
     width: OUTER_SIZE,
     height: OUTER_SIZE,
@@ -807,7 +913,7 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     bottom: 16,
-    zIndex: 20,
+    zIndex: 1,
     backgroundColor: "rgba(255,255,255,0.97)",
     borderRadius: 18,
     padding: 16,
@@ -846,6 +952,12 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 14,
     color: "#374151",
+    fontWeight: "600",
+  },
+
+  legendStatus: {
+    fontSize: 13,
+    color: "#4b5563",
     fontWeight: "600",
   },
 

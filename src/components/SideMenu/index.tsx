@@ -33,7 +33,6 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
     foto: null
   });
 
-  /* 🔹 Carregar dados do usuário salvos */
   useEffect(() => {
     carregarUsuario();
   }, [visible]);
@@ -53,7 +52,6 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
     }
   }
 
-  /* 🔹 Animação de abrir e fechar (espelhadas) */
   useEffect(() => {
     if (visible) {
       setShouldRender(true);
@@ -72,7 +70,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
         setShouldRender(false);
       });
     }
-  }, [visible]);
+  }, [visible, slideAnim]);
 
   function navigate(route: AppRoute) {
     onClose();
@@ -93,11 +91,14 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
 
   return (
     <>
-      {/* Overlay */}
-      <Pressable style={styles.overlay} onPress={onClose} />
+      <Pressable
+        style={[styles.overlay, { zIndex: 998 }]}
+        onPress={onClose}
+      />
 
-      {/* Menu */}
-      <Animated.View style={[styles.menu, { left: slideAnim }]}>
+      <Animated.View
+        style={[styles.menu, { left: slideAnim, zIndex: 999 }]}
+      >
         {usuario.foto ? (
           <Image
             source={{ uri: usuario.foto }}
@@ -122,7 +123,7 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           label="Perfil"
           onPress={() => navigate("/perfil")}
         />
- 
+
         <MenuItem
           icon="⚙"
           label="Configuração"
@@ -134,12 +135,12 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
           label="Chat"
           onPress={() => navigate("/chat")}
         />
-        
+
         <MenuItem
           icon="🏆"
           label="Ranking"
           onPress={() => navigate("/ranking")}
-        /> 
+        />
 
         <MenuItem
           icon="🔑"
@@ -151,7 +152,6 @@ export default function SideMenu({ visible, onClose }: SideMenuProps) {
   );
 }
 
-/* 🔹 Item reutilizável */
 function MenuItem({
   icon,
   label,
@@ -164,9 +164,9 @@ function MenuItem({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed, hovered }) => [
+      style={({ pressed }) => [
         styles.item,
-        (pressed || hovered) && styles.itemPressed
+        pressed && styles.itemPressed
       ]}
     >
       <Text style={styles.icon}>{icon}</Text>

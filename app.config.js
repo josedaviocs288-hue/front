@@ -9,6 +9,14 @@ module.exports = {
     assetBundlePatterns: ["**/*"],
     newArchEnabled: true,
 
+    icon: "./assets/icon.png",
+
+    splash: {
+      image: "./assets/splash.png",
+      resizeMode: "contain",
+      backgroundColor: "#80C865"
+    },
+
     android: {
       package: "com.recicleplus.app",
       usesCleartextTraffic: true,
@@ -16,7 +24,11 @@ module.exports = {
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "INTERNET"
-      ]
+      ],
+      adaptiveIcon: {
+        foregroundImage: "./assets/adaptive-icon.png",
+        backgroundColor: "#80C865"
+      }
     },
 
     plugins: [
