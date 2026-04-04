@@ -9,10 +9,10 @@ module.exports = {
     assetBundlePatterns: ["**/*"],
     newArchEnabled: true,
 
-    icon: "./assets/icon.png",
+    icon: "./src/assets/icon.png",
 
     splash: {
-      image: "./assets/splash.png",
+      image: "./src/assets/splash.png",
       resizeMode: "contain",
       backgroundColor: "#80C865"
     },
@@ -26,7 +26,7 @@ module.exports = {
         "INTERNET"
       ],
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
+        foregroundImage: "./src/assets/adaptive-icon.png",
         backgroundColor: "#80C865"
       }
     },
