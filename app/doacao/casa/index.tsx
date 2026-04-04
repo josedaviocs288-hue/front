@@ -1,3 +1,4 @@
+// @ts-ignore
 import { Picker } from "@react-native-picker/picker";
 import * as Location from "expo-location";
 import { router } from "expo-router";
@@ -26,11 +27,12 @@ function normalizarUF(valor?: string | null) {
   return v.length > 2 ? "CE" : v;
 }
 
+type TipoQuantidade = "quilo" | "unidade";
+
 export default function DoacaoCasa() {
   const [tipoReciclavel, setTipoReciclavel] = useState("");
-  const [tipoQuantidade, setTipoQuantidade] = useState<"quilo" | "unidade">(
-    "quilo"
-  );
+  const [tipoQuantidade, setTipoQuantidade] =
+    useState<TipoQuantidade>("quilo");
   const [quantidade, setQuantidade] = useState("");
   const [numero, setNumero] = useState("");
   const [referencia, setReferencia] = useState("");
@@ -230,11 +232,15 @@ export default function DoacaoCasa() {
           <Text style={styles.label}>Tipo de reciclável</Text>
           <View style={styles.pickerWrapper}>
             <Picker
-  selectedValue={tipoReciclavel}
-  onValueChange={(value) => setTipoReciclavel(value)}
-  style={{ color: tipoReciclavel ? "#111827" : "#9ca3af" }}
->
-              <Picker.Item label="Escolha o tipo de doação" value="" color="#9ca3af" />
+              selectedValue={tipoReciclavel}
+              onValueChange={(value: string) => setTipoReciclavel(value)}
+              style={{ color: tipoReciclavel ? "#111827" : "#9ca3af" }}
+            >
+              <Picker.Item
+                label="Escolha o tipo de doação"
+                value=""
+                color="#9ca3af"
+              />
               <Picker.Item label="Plástico" value="PLASTICO" />
               <Picker.Item label="Vidro" value="VIDRO" />
               <Picker.Item label="Papel" value="PAPEL" />
@@ -246,12 +252,12 @@ export default function DoacaoCasa() {
           <Text style={styles.label}>Doar por</Text>
           <View style={styles.pickerWrapper}>
             <Picker
-  selectedValue={tipoQuantidade}
-  onValueChange={(value) =>
-    setTipoQuantidade(value as "quilo" | "unidade")
-  }
-  style={{ color: "#111827" }}
->
+              selectedValue={tipoQuantidade}
+              onValueChange={(value: string) =>
+                setTipoQuantidade(value as TipoQuantidade)
+              }
+              style={{ color: "#111827" }}
+            >
               <Picker.Item label="Quilo (kg)" value="quilo" />
               <Picker.Item label="Unidade" value="unidade" />
             </Picker>

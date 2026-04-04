@@ -31,6 +31,12 @@ type Doacao = {
   id: number;
   doador?: Usuario | null;
   coletor?: Usuario | null;
+  doadorId?: number | null;
+  doadorNome?: string | null;
+  doadorEmail?: string | null;
+  coletorId?: number | null;
+  coletorNome?: string | null;
+  coletorEmail?: string | null;
   status?: StatusDoacao;
   quantidadeDescricao?: string | null;
   quantidadeKg?: number | null;
@@ -120,7 +126,9 @@ export default function ColetasScreen() {
       const lista = extrairListaDoacoes(response.data?.data ?? response.data);
 
       if (sucesso === false) {
-        throw new Error(response.data?.message || "Não foi possível carregar as doações.");
+        throw new Error(
+          response.data?.message || "Não foi possível carregar as doações."
+        );
       }
 
       console.log("🔥 DOACOES TRATADAS:", lista);
@@ -159,7 +167,13 @@ export default function ColetasScreen() {
   }
 
   function montarEndereco(doacao: Doacao) {
-    const partes = [doacao.rua, doacao.numero, doacao.bairro, doacao.cidade, doacao.uf]
+    const partes = [
+      doacao.rua,
+      doacao.numero,
+      doacao.bairro,
+      doacao.cidade,
+      doacao.uf,
+    ]
       .map((item) => (item ?? "").toString().trim())
       .filter(Boolean);
 
@@ -209,6 +223,11 @@ export default function ColetasScreen() {
   }
 
   function atualizarListaLocal(id: number, novoStatus: string) {
+    if (novoStatus === "CONCLUIDA" || novoStatus === "CANCELADA") {
+      setDoacoes((listaAtual) => listaAtual.filter((item) => item.id !== id));
+      return;
+    }
+
     setDoacoes((listaAtual) =>
       listaAtual.map((item) =>
         item.id === id ? { ...item, status: novoStatus } : item
@@ -243,18 +262,19 @@ export default function ColetasScreen() {
       console.log("✅ STATUS ATUALIZADO:", response.data);
 
       if (response.data?.success === false) {
-        throw new Error(response.data?.message || "Não foi possível atualizar a doação.");
+        throw new Error(
+          response.data?.message || "Não foi possível atualizar a doação."
+        );
       }
 
       const statusReal = response.data?.data?.status || proximoStatus;
 
       atualizarListaLocal(id, statusReal);
 
-      if (statusReal === "CONCLUIDA") {
-        setDoacoes((listaAtual) => listaAtual.filter((item) => item.id !== id));
-      }
-
-      Alert.alert("Sucesso", response.data?.message || "Doação atualizada com sucesso.");
+      Alert.alert(
+        "Sucesso",
+        response.data?.message || "Doação atualizada com sucesso."
+      );
 
       await carregarDoacoes(true);
     } catch (error: any) {
@@ -270,7 +290,7 @@ export default function ColetasScreen() {
   }
 
   function corStatus(status?: string) {
-    switch (status) {
+    switch (String(status || "").toUpperCase()) {
       case "PENDENTE":
         return "#f59e0b";
       case "ACEITA":
@@ -288,19 +308,22 @@ export default function ColetasScreen() {
   }
 
   const doacoesAtivas = useMemo(() => {
-    return doacoes.filter(
-      (item) => item.status !== "CONCLUIDA" && item.status !== "CANCELADA"
-    );
+    return doacoes.filter((item) => {
+      const status = String(item.status || "").toUpperCase();
+      return status !== "CONCLUIDA" && status !== "CANCELADA";
+    });
   }, [doacoes]);
 
   function renderBotoes(item: Doacao, processando: boolean) {
     if (!item?.id) return null;
 
-    if (item.status === "CONCLUIDA" || item.status === "CANCELADA") {
+    const status = String(item.status || "PENDENTE").toUpperCase();
+
+    if (status === "CONCLUIDA" || status === "CANCELADA") {
       return null;
     }
 
-    if (item.status === "PENDENTE") {
+    if (status === "PENDENTE") {
       return (
         <TouchableOpacity
           style={[
@@ -319,7 +342,7 @@ export default function ColetasScreen() {
       );
     }
 
-    if (item.status === "ACEITA") {
+    if (status === "ACEITA") {
       return (
         <TouchableOpacity
           style={[
@@ -338,7 +361,7 @@ export default function ColetasScreen() {
       );
     }
 
-    if (item.status === "EM_ROTA" || item.status === "EM_ANDAMENTO") {
+    if (status === "EM_ROTA" || status === "EM_ANDAMENTO") {
       return (
         <TouchableOpacity
           style={[
@@ -363,16 +386,19 @@ export default function ColetasScreen() {
   function renderItem({ item }: { item: Doacao }) {
     const processando = atualizandoId === item.id;
     const nomeDoador =
+      item.doadorNome ||
       item.doador?.nome ||
       item.user?.nome ||
-      (item.doador?.id ? `Doador #${item.doador.id}` : "Doador");
+      (item.doadorId ? `Doador #${item.doadorId}` : "Doador");
 
     return (
       <View style={styles.card}>
         <View style={styles.cardTop}>
           <Text style={styles.nomeDoador}>{nomeDoador}</Text>
           <View style={[styles.badge, { backgroundColor: corStatus(item.status) }]}>
-            <Text style={styles.badgeText}>{item.status || "PENDENTE"}</Text>
+            <Text style={styles.badgeText}>
+              {String(item.status || "PENDENTE").toUpperCase()}
+            </Text>
           </View>
         </View>
 
@@ -459,13 +485,13 @@ export default function ColetasScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>Nenhuma doação ativa</Text>
+            <Text style={styles.emptyTitle}>Nenhuma coleta disponível</Text>
             <Text style={styles.emptyText}>
-              Quando surgirem novas doações pendentes, aceitas ou em rota, elas
-              aparecerão aqui.
+              Quando houver doações pendentes, elas aparecerão aqui.
             </Text>
           </View>
         }
+        showsVerticalScrollIndicator={false}
       />
     </View>
   );
@@ -474,36 +500,29 @@ export default function ColetasScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#eef5f0",
+    backgroundColor: "#f4f7fb",
   },
   hero: {
-    backgroundColor: "#2e7d32",
-    paddingHorizontal: 18,
+    backgroundColor: "#22c55e",
+    paddingHorizontal: 20,
     paddingTop: 22,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingBottom: 18,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
   },
   heroTitle: {
-    color: "#fff",
-    fontSize: 26,
-    fontWeight: "bold",
+    color: "#ffffff",
+    fontSize: 22,
+    fontWeight: "800",
   },
   heroSub: {
-    color: "#e7f7ea",
-    marginTop: 6,
+    color: "#dcfce7",
     fontSize: 14,
-    lineHeight: 20,
-  },
-  erro: {
-    color: "#b00020",
-    fontWeight: "700",
-    paddingHorizontal: 16,
-    paddingTop: 12,
+    marginTop: 4,
   },
   list: {
     padding: 16,
-    paddingBottom: 26,
+    paddingBottom: 30,
   },
   emptyList: {
     flexGrow: 1,
@@ -511,26 +530,27 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
     padding: 16,
     marginBottom: 14,
     shadowColor: "#000",
     shadowOpacity: 0.08,
-    shadowRadius: 10,
-    elevation: 4,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
   cardTop: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     justifyContent: "space-between",
-    gap: 12,
     marginBottom: 12,
+    gap: 10,
   },
   nomeDoador: {
     flex: 1,
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 17,
+    fontWeight: "800",
     color: "#111827",
   },
   badge: {
@@ -539,30 +559,33 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   badgeText: {
-    color: "#fff",
+    color: "#ffffff",
     fontSize: 12,
-    fontWeight: "bold",
+    fontWeight: "800",
   },
   info: {
     fontSize: 14,
     color: "#374151",
-    marginBottom: 6,
+    marginBottom: 7,
     lineHeight: 20,
   },
   label: {
-    fontWeight: "bold",
+    fontWeight: "700",
     color: "#111827",
   },
   actionRow: {
     marginTop: 14,
-    width: "100%",
   },
   actionButton: {
-    width: "100%",
-    borderRadius: 14,
+    borderRadius: 12,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
+  },
+  actionText: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: "800",
   },
   blueButton: {
     backgroundColor: "#2563eb",
@@ -571,56 +594,62 @@ const styles = StyleSheet.create({
     backgroundColor: "#f59e0b",
   },
   greenButton: {
-    backgroundColor: "#22c55e",
+    backgroundColor: "#16a34a",
   },
   disabledButton: {
-    opacity: 0.6,
-  },
-  actionText: {
-    color: "#fff",
-    fontWeight: "bold",
-    fontSize: 15,
-  },
-  emptyBox: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  emptyText: {
-    textAlign: "center",
-    color: "#6b7280",
-    fontSize: 15,
-    lineHeight: 22,
+    opacity: 0.65,
   },
   centered: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#f4f7fb",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
   },
   loadingText: {
     marginTop: 12,
-    fontSize: 16,
+    fontSize: 15,
     color: "#374151",
   },
   blockTitle: {
     fontSize: 22,
-    fontWeight: "bold",
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 10,
+  },
+  blockText: {
+    fontSize: 15,
+    color: "#4b5563",
+    textAlign: "center",
+    lineHeight: 22,
+  },
+  erro: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    backgroundColor: "#fee2e2",
+    color: "#b91c1c",
+    padding: 12,
+    borderRadius: 12,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  emptyBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "800",
     color: "#111827",
     marginBottom: 8,
   },
-  blockText: {
-    textAlign: "center",
+  emptyText: {
+    fontSize: 14,
     color: "#6b7280",
-    fontSize: 15,
-    lineHeight: 22,
+    textAlign: "center",
+    lineHeight: 21,
   },
 });

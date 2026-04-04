@@ -20,6 +20,7 @@ module.exports = {
     },
 
     plugins: [
+      "expo-router",
       [
         "@rnmapbox/maps",
         {

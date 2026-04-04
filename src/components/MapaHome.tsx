@@ -26,29 +26,28 @@ type Coordenada = {
   longitude: number;
 };
 
-type MapaHomeResponse = {
+type DoacaoMapaItem = {
+  id: number;
+  latitude: number;
+  longitude: number;
+  referencia?: string;
+  bairro?: string;
+  cidade?: string;
+  rua?: string;
+  numero?: string;
+  materiais?: string;
+  status?: string;
+  doadorNome?: string;
+};
+
+type MapaHomeApiResponse = {
   success?: boolean;
-  trackingAtivo?: boolean;
-  tipoUsuario?: TipoUsuario;
-  casaDoador?: {
-    latitude: number;
-    longitude: number;
-    referencia?: string;
-    bairro?: string;
-    cidade?: string;
-  } | null;
-  localizacaoColetor?: {
-    latitude: number;
-    longitude: number;
-  } | null;
-  coletaAceita?: {
-    id?: number;
-    latitude?: number;
-    longitude?: number;
-    referencia?: string;
-    bairro?: string;
-    cidade?: string;
-  } | null;
+  message?: string;
+  data?: {
+    total?: number;
+    usuarioLogado?: string | null;
+    doacoes?: DoacaoMapaItem[];
+  };
 };
 
 type Props = {
@@ -63,7 +62,7 @@ export default function MapaHome({
   tipoUsuario: tipoUsuarioProp,
   onAcaoPrincipal,
 }: Props) {
-  const cameraRef = useRef<Mapbox.Camera>(null);
+  const cameraRef = useRef<any>(null);
 
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
@@ -77,11 +76,14 @@ export default function MapaHome({
   const [localizacaoColetor, setLocalizacaoColetor] = useState<Coordenada | null>(null);
   const [casaDoador, setCasaDoador] = useState<Coordenada | null>(null);
   const [rotaGeoJSON, setRotaGeoJSON] = useState<any>(null);
+  const [doacoesMapa, setDoacoesMapa] = useState<DoacaoMapaItem[]>([]);
 
   const destinoDescricao = useMemo(() => {
-    if (!trackingAtivo) return "Sem coleta ativa";
-    return "Casa do doador";
-  }, [trackingAtivo]);
+    if (tipoUsuario === "COLETOR") {
+      return doacoesMapa.length > 0 ? "Doações pendentes" : "Sem doações pendentes";
+    }
+    return doacoesMapa.length > 0 ? "Doações disponíveis" : "Sem doações no mapa";
+  }, [tipoUsuario, doacoesMapa]);
 
   const coletorDescricao = useMemo(() => {
     if (!localizacaoColetor) return "Coletor ainda não localizado";
@@ -164,43 +166,38 @@ export default function MapaHome({
 
   const carregarDadosBackend = useCallback(async () => {
     try {
-      const response = await api.get<MapaHomeResponse>("/doacoes/mapa/home");
-      const data = response.data;
+      const response = await api.get<MapaHomeApiResponse>("/doacoes/mapa/home");
+      const data = response.data?.data;
 
-      setTrackingAtivo(!!data.trackingAtivo);
+      const doacoes = data?.doacoes ?? [];
+      setDoacoesMapa(doacoes);
+      setTrackingAtivo(doacoes.length > 0);
 
-      if (data.casaDoador?.latitude && data.casaDoador?.longitude) {
-        setCasaDoador({
-          latitude: Number(data.casaDoador.latitude),
-          longitude: Number(data.casaDoador.longitude),
-        });
-      } else if (data.coletaAceita?.latitude && data.coletaAceita?.longitude) {
-        setCasaDoador({
-          latitude: Number(data.coletaAceita.latitude),
-          longitude: Number(data.coletaAceita.longitude),
-        });
+      if (tipoUsuario === "COLETOR" && doacoes.length > 0) {
+        const primeira = doacoes[0];
+
+        if (
+          primeira.latitude !== undefined &&
+          primeira.longitude !== undefined
+        ) {
+          setCasaDoador({
+            latitude: Number(primeira.latitude),
+            longitude: Number(primeira.longitude),
+          });
+        } else {
+          setCasaDoador(null);
+        }
       } else {
         setCasaDoador(null);
       }
 
-      if (
-        data.localizacaoColetor?.latitude &&
-        data.localizacaoColetor?.longitude
-      ) {
-        setLocalizacaoColetor({
-          latitude: Number(data.localizacaoColetor.latitude),
-          longitude: Number(data.localizacaoColetor.longitude),
-        });
-      } else {
-        setLocalizacaoColetor(null);
-      }
-
+      setLocalizacaoColetor(null);
       setErro("");
     } catch (error) {
       console.log("Erro ao carregar dados do mapa:", error);
       setErro("Não foi possível carregar os dados do mapa.");
     }
-  }, []);
+  }, [tipoUsuario]);
 
   const buscarRota = useCallback(async () => {
     if (!mapboxToken || !minhaLocalizacao || !casaDoador) {
@@ -248,14 +245,23 @@ export default function MapaHome({
       return;
     }
 
-    if (tipoUsuario === "DOADOR" && casaDoador && localizacaoColetor) {
-      cameraRef.current.fitBounds(
-        [localizacaoColetor.longitude,     localizacaoColetor.latitude],
-        [casaDoador.longitude,   casaDoador.latitude],
-        80,
-        1000
-      );
-      return;
+    if (doacoesMapa.length > 0) {
+      const primeira = doacoesMapa[0];
+
+      if (
+        primeira.latitude !== undefined &&
+        primeira.longitude !== undefined
+      ) {
+        cameraRef.current.setCamera({
+          centerCoordinate: [
+            Number(primeira.longitude),
+            Number(primeira.latitude),
+          ],
+          zoomLevel: 13,
+          animationDuration: 1200,
+        });
+        return;
+      }
     }
 
     if (minhaLocalizacao) {
@@ -267,8 +273,15 @@ export default function MapaHome({
         zoomLevel: 14,
         animationDuration: 1200,
       });
+      return;
     }
-  }, [tipoUsuario, minhaLocalizacao, casaDoador, localizacaoColetor]);
+
+    cameraRef.current.setCamera({
+      centerCoordinate: [-39.9167, -2.9248],
+      zoomLevel: 12,
+      animationDuration: 1200,
+    });
+  }, [tipoUsuario, minhaLocalizacao, casaDoador, doacoesMapa]);
 
   const atualizarTudo = useCallback(async () => {
     await carregarTipoUsuario();
@@ -312,11 +325,11 @@ export default function MapaHome({
 
   useEffect(() => {
     if (!loading) {
-      const timeout =   setTimeout(() => {
+      const timeout = setTimeout(() => {
         centralizarMapa();
       }, 700);
 
-      return () =>    clearTimeout(timeout);
+      return () => clearTimeout(timeout);
     }
   }, [loading, centralizarMapa, rotaGeoJSON]);
 
@@ -324,16 +337,16 @@ export default function MapaHome({
     if (loading) return "Carregando mapa...";
     if (erro) return erro;
 
-    if (!trackingAtivo) {
+    if (doacoesMapa.length === 0) {
       return tipoUsuario === "COLETOR"
-        ? "Nenhuma coleta aceita no momento."
-        : "Nenhuma coleta ativa no momento.";
+        ? "Nenhuma doação pendente no momento."
+        : "Nenhuma doação visível no momento.";
     }
 
-    return tipoUsuario === "DOADOR"
-      ? "Acompanhe o coletor em tempo real."
-      : "Siga a rota até a casa do doador.";
-  }, [loading, erro, trackingAtivo, tipoUsuario]);
+    return tipoUsuario === "COLETOR"
+      ? `${doacoesMapa.length} doação(ões) pendente(s) no mapa.`
+      : "Doações carregadas no mapa.";
+  }, [loading, erro, doacoesMapa, tipoUsuario]);
 
   const tituloMapa = useMemo(() => {
     if (tipoUsuario === "COLETOR") return "Mapa do coletor";
@@ -426,16 +439,17 @@ export default function MapaHome({
           </Mapbox.PointAnnotation>
         )}
 
-        {casaDoador && (
+        {doacoesMapa.map((item) => (
           <Mapbox.PointAnnotation
-            id="casa-doador"
-            coordinate={[casaDoador.longitude, casaDoador.latitude]}
+            key={`doacao-${item.id}`}
+            id={`doacao-${item.id}`}
+            coordinate={[Number(item.longitude), Number(item.latitude)]}
           >
             <View style={styles.markerWrapper}>
               <View style={styles.markerHome} />
             </View>
           </Mapbox.PointAnnotation>
-        )}
+        ))}
 
         {tipoUsuario === "DOADOR" && localizacaoColetor && (
           <Mapbox.PointAnnotation
@@ -472,7 +486,7 @@ export default function MapaHome({
           </View>
         )}
 
-        {tipoUsuario === "COLETOR" && trackingAtivo && (
+        {tipoUsuario === "COLETOR" && trackingAtivo && rotaGeoJSON && (
           <View style={styles.legendRow}>
             <View style={styles.routeLinePreview} />
             <Text style={styles.legendText}>Rota até o destino</Text>
@@ -480,9 +494,9 @@ export default function MapaHome({
         )}
 
         <TouchableOpacity
-  style={styles.primaryActionButton}
-  onPress={onAcaoPrincipal || irParaAcaoPrincipal}
->
+          style={styles.primaryActionButton}
+          onPress={onAcaoPrincipal || irParaAcaoPrincipal}
+        >
           <Text style={styles.primaryActionText}>{textoBotaoPrincipal}</Text>
         </TouchableOpacity>
 

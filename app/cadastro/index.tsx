@@ -14,10 +14,10 @@ export default function Cadastro() {
   const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
   const [senha, setSenha] = useState("");
-  const [tipo, setTipo] = useState<"DOADOR" | "COLETOR">("DOADOR");
-
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const tipo = "DOADOR";
 
   function formatarCpf(valor: string) {
     const numeros = valor.replace(/\D/g, "").slice(0, 11);
@@ -37,7 +37,6 @@ export default function Cadastro() {
     const emailLimpo = email.trim().toLowerCase();
     const cpfLimpo = cpf.replace(/\D/g, "");
     const senhaLimpa = senha.trim();
-    const tipoLimpo = tipo.trim().toUpperCase();
 
     if (!nomeLimpo || !emailLimpo || !cpfLimpo || !senhaLimpa) {
       setError("Preencha todos os campos.");
@@ -50,64 +49,33 @@ export default function Cadastro() {
     }
 
     if (cpfLimpo.length !== 11) {
-      setError("Digite um CPF válido com 11 números.");
+      setError("Digite um CPF válido.");
       return;
     }
 
     if (senhaLimpa.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
+      setError("Senha mínima de 6 caracteres.");
       return;
     }
 
     try {
       setLoading(true);
 
-      console.log("📤 CADASTRO:", {
-        nome: nomeLimpo,
-        email: emailLimpo,
-        cpf: cpfLimpo,
-        senha: senhaLimpa,
-        tipo: tipoLimpo,
-      });
-
-      const resposta = await fazerCadastro(
+      await fazerCadastro(
         nomeLimpo,
         emailLimpo,
         cpfLimpo,
         senhaLimpa,
-        tipoLimpo
+        tipo
       );
-
-      console.log("✅ CADASTRO OK:", resposta);
 
       router.replace("/login");
     } catch (err: any) {
-      console.log("❌ ERRO CADASTRO COMPLETO:", err);
-      console.log("❌ STATUS CADASTRO:", err?.response?.status);
-      console.log("❌ DATA CADASTRO:", err?.response?.data);
-      console.log("❌ MESSAGE CADASTRO:", err?.message);
-
-      if (err?.response?.status === 400) {
-        setError(
-          err?.response?.data?.message ||
-            err?.response?.data?.errors?.email ||
-            err?.response?.data?.errors?.cpf ||
-            err?.response?.data?.errors?.senha ||
-            "Dados inválidos."
-        );
-      } else if (err?.response?.status === 409) {
-        setError(
-          err?.response?.data?.message || "E-mail ou CPF já cadastrados."
-        );
-      } else if (!err?.response) {
-        setError("Sem conexão com o servidor.");
-      } else {
-        setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Erro ao fazer cadastro."
-        );
-      }
+      setError(
+        err?.response?.data?.message ||
+          err?.response?.data?.error ||
+          "Erro ao fazer cadastro."
+      );
     } finally {
       setLoading(false);
     }
@@ -117,7 +85,7 @@ export default function Cadastro() {
     <View
       style={{
         flex: 1,
-        backgroundColor: "#09B388",
+        backgroundColor: "#12A67E",
         justifyContent: "center",
         alignItems: "center",
         paddingHorizontal: 20,
@@ -126,175 +94,127 @@ export default function Cadastro() {
       <View
         style={{
           width: "100%",
-          maxWidth: 540,
-          backgroundColor: "#F7F7F7",
+          maxWidth: 500,
+          backgroundColor: "#F2F2F2",
           borderRadius: 20,
-          paddingHorizontal: 24,
+          paddingHorizontal: 28,
           paddingVertical: 30,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.18,
-          shadowRadius: 12,
-          elevation: 10,
+          elevation: 8,
         }}
       >
         <Text
           style={{
-            fontSize: 26,
+            fontSize: 24,
             fontWeight: "700",
             textAlign: "center",
             color: "#0C6B5A",
-            marginBottom: 28,
+            marginBottom: 30,
           }}
         >
           Cadastro
         </Text>
 
+        <Text
+          style={{
+            color: "#7A7A7A",
+            fontSize: 14,
+            marginBottom: 6,
+          }}
+        >
+          Nome completo
+        </Text>
         <TextInput
           value={nome}
           onChangeText={setNome}
-          placeholder="Nome completo"
-          placeholderTextColor="#8F8F8F"
-          autoCapitalize="words"
-          editable={!loading}
+          placeholder=""
           style={{
-            height: 52,
             borderBottomWidth: 1,
-            borderBottomColor: "#B7D3CC",
-            marginBottom: 22,
+            borderBottomColor: "#B8C9C4",
+            marginBottom: 24,
+            paddingVertical: 8,
             fontSize: 16,
-            color: "#1F1F1F",
-            backgroundColor: "transparent",
+            color: "#333",
           }}
         />
 
+        <Text
+          style={{
+            color: "#7A7A7A",
+            fontSize: 14,
+            marginBottom: 6,
+          }}
+        >
+          E-mail
+        </Text>
         <TextInput
           value={email}
           onChangeText={setEmail}
-          placeholder="E-mail"
-          placeholderTextColor="#8F8F8F"
-          autoCapitalize="none"
-          autoCorrect={false}
+          placeholder=""
           keyboardType="email-address"
-          editable={!loading}
+          autoCapitalize="none"
           style={{
-            height: 52,
             borderBottomWidth: 1,
-            borderBottomColor: "#B7D3CC",
-            marginBottom: 22,
+            borderBottomColor: "#B8C9C4",
+            marginBottom: 24,
+            paddingVertical: 8,
             fontSize: 16,
-            color: "#1F1F1F",
-            backgroundColor: "transparent",
+            color: "#333",
           }}
         />
 
+        <Text
+          style={{
+            color: "#7A7A7A",
+            fontSize: 14,
+            marginBottom: 6,
+          }}
+        >
+          CPF
+        </Text>
         <TextInput
           value={cpf}
-          onChangeText={(texto) => setCpf(formatarCpf(texto))}
-          placeholder="CPF"
-          placeholderTextColor="#8F8F8F"
+          onChangeText={(t) => setCpf(formatarCpf(t))}
+          placeholder=""
           keyboardType="numeric"
-          maxLength={14}
-          editable={!loading}
           style={{
-            height: 52,
             borderBottomWidth: 1,
-            borderBottomColor: "#B7D3CC",
-            marginBottom: 22,
+            borderBottomColor: "#B8C9C4",
+            marginBottom: 24,
+            paddingVertical: 8,
             fontSize: 16,
-            color: "#1F1F1F",
-            backgroundColor: "transparent",
+            color: "#333",
           }}
         />
 
+        <Text
+          style={{
+            color: "#7A7A7A",
+            fontSize: 14,
+            marginBottom: 6,
+          }}
+        >
+          Senha
+        </Text>
         <TextInput
           value={senha}
           onChangeText={setSenha}
-          placeholder="Senha"
-          placeholderTextColor="#8F8F8F"
+          placeholder=""
           secureTextEntry
-          autoCapitalize="none"
-          autoCorrect={false}
-          editable={!loading}
           style={{
-            height: 52,
             borderBottomWidth: 1,
-            borderBottomColor: "#B7D3CC",
-            marginBottom: 26,
+            borderBottomColor: "#B8C9C4",
+            marginBottom: 24,
+            paddingVertical: 8,
             fontSize: 16,
-            color: "#1F1F1F",
-            backgroundColor: "transparent",
+            color: "#333",
           }}
         />
-
-        <View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginBottom: 26,
-          }}
-        >
-          <TouchableOpacity
-            onPress={() => setTipo("DOADOR")}
-            disabled={loading}
-            style={{
-              flex: 1,
-              height: 56,
-              borderRadius: 10,
-              borderWidth: 1.5,
-              borderColor: tipo === "DOADOR" ? "#0B6B59" : "#39B89B",
-              backgroundColor: tipo === "DOADOR" ? "#0B6B59" : "#F7F7F7",
-              justifyContent: "center",
-              alignItems: "center",
-              marginRight: 8,
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            <Text
-              style={{
-                color: tipo === "DOADOR" ? "#FFFFFF" : "#2CA98D",
-                fontWeight: "600",
-                fontSize: 16,
-              }}
-            >
-              Doador
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setTipo("COLETOR")}
-            disabled={loading}
-            style={{
-              flex: 1,
-              height: 56,
-              borderRadius: 10,
-              borderWidth: 1.5,
-              borderColor: tipo === "COLETOR" ? "#0B6B59" : "#39B89B",
-              backgroundColor: tipo === "COLETOR" ? "#0B6B59" : "#F7F7F7",
-              justifyContent: "center",
-              alignItems: "center",
-              marginLeft: 8,
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            <Text
-              style={{
-                color: tipo === "COLETOR" ? "#FFFFFF" : "#2CA98D",
-                fontWeight: "600",
-                fontSize: 16,
-              }}
-            >
-              Coletor
-            </Text>
-          </TouchableOpacity>
-        </View>
 
         {error ? (
           <Text
             style={{
-              color: "#D93025",
+              color: "red",
               marginBottom: 14,
-              textAlign: "center",
               fontSize: 14,
             }}
           >
@@ -306,23 +226,23 @@ export default function Cadastro() {
           onPress={handleCadastro}
           disabled={loading}
           style={{
-            backgroundColor: "#0B6B59",
-            height: 56,
+            backgroundColor: "#0C6B5A",
+            paddingVertical: 15,
             borderRadius: 8,
-            justifyContent: "center",
             alignItems: "center",
+            marginTop: 8,
+            marginBottom: 18,
             opacity: loading ? 0.7 : 1,
           }}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color="#FFF" />
           ) : (
             <Text
               style={{
-                color: "#FFFFFF",
+                color: "#FFF",
                 fontWeight: "700",
                 fontSize: 16,
-                letterSpacing: 0.4,
               }}
             >
               Cadastrar
@@ -330,17 +250,12 @@ export default function Cadastro() {
           )}
         </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => router.replace("/login")}
-          disabled={loading}
-          style={{ marginTop: 22 }}
-        >
+        <TouchableOpacity onPress={() => router.replace("/login")}>
           <Text
             style={{
               textAlign: "center",
-              color: "#2FAF91",
+              color: "#22A884",
               fontSize: 15,
-              fontWeight: "500",
             }}
           >
             Já tem conta? Faça login
