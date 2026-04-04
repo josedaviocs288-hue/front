@@ -14,7 +14,7 @@ import {
 import Checkbox from "expo-checkbox";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { fazerLogin } from "../../src/services/auth";
+import { fazerLogin } from "@/src/services/auth";
 
 export default function LoginScreen() {
   const [email, setEmail] = useState("");
@@ -62,8 +62,6 @@ export default function LoginScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.container}>
           <View style={styles.card}>
-            
-            {/* 🔥 CORREÇÃO AQUI */}
             <Image
               source={require("../../src/assets/images/logo-recicle-plus.png")}
               style={styles.logo}

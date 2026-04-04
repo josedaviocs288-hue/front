@@ -65,3 +65,8 @@ export async function removeUserType(): Promise<void> {
     "@tipoUsuario",
   ]);
 }
+
+export async function clearAuthStorage(): Promise<void> {
+  await removeToken();
+  await removeUserType();
+}

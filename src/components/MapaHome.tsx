@@ -72,17 +72,23 @@ export default function MapaHome({
     tipoUsuarioProp || "DOADOR"
   );
 
-  const [minhaLocalizacao, setMinhaLocalizacao] = useState<Coordenada | null>(null);
-  const [localizacaoColetor, setLocalizacaoColetor] = useState<Coordenada | null>(null);
+  const [minhaLocalizacao, setMinhaLocalizacao] =
+    useState<Coordenada | null>(null);
+  const [localizacaoColetor, setLocalizacaoColetor] =
+    useState<Coordenada | null>(null);
   const [casaDoador, setCasaDoador] = useState<Coordenada | null>(null);
   const [rotaGeoJSON, setRotaGeoJSON] = useState<any>(null);
   const [doacoesMapa, setDoacoesMapa] = useState<DoacaoMapaItem[]>([]);
 
   const destinoDescricao = useMemo(() => {
     if (tipoUsuario === "COLETOR") {
-      return doacoesMapa.length > 0 ? "Doações pendentes" : "Sem doações pendentes";
+      return doacoesMapa.length > 0
+        ? "Doações pendentes"
+        : "Sem doações pendentes";
     }
-    return doacoesMapa.length > 0 ? "Doações disponíveis" : "Sem doações no mapa";
+    return doacoesMapa.length > 0
+      ? "Doações disponíveis"
+      : "Sem doações no mapa";
   }, [tipoUsuario, doacoesMapa]);
 
   const coletorDescricao = useMemo(() => {
@@ -338,20 +344,13 @@ export default function MapaHome({
     if (erro) return erro;
 
     if (doacoesMapa.length === 0) {
-      return tipoUsuario === "COLETOR"
-        ? "Nenhuma doação pendente no momento."
-        : "Nenhuma doação visível no momento.";
+      return "";
     }
 
     return tipoUsuario === "COLETOR"
       ? `${doacoesMapa.length} doação(ões) pendente(s) no mapa.`
       : "Doações carregadas no mapa.";
   }, [loading, erro, doacoesMapa, tipoUsuario]);
-
-  const tituloMapa = useMemo(() => {
-    if (tipoUsuario === "COLETOR") return "Mapa do coletor";
-    return "Mapa do doador";
-  }, [tipoUsuario]);
 
   const textoBotaoPrincipal = useMemo(() => {
     return tipoUsuario === "COLETOR"
@@ -390,11 +389,6 @@ export default function MapaHome({
 
   return (
     <View style={styles.container}>
-      <View style={styles.infoCardTop}>
-        <Text style={styles.infoTitle}>{tituloMapa}</Text>
-        <Text style={styles.infoSubtitle}>{textoStatus}</Text>
-      </View>
-
       <Mapbox.MapView
         style={styles.map}
         logoEnabled={false}
