@@ -1,5 +1,6 @@
 import { Image, TouchableOpacity, Text, View } from "react-native";
 import { styles } from "./styles";
+import NotificationBadge from "@/src/components/NotificationBadge"; // 🔥 IMPORTANTE
 
 type NavbarProps = {
   onMenuPress: () => void;
@@ -22,21 +23,26 @@ export function Navbar({
       {/* Logo central */}
       {showLogo ? (
         <Image
-  source={require("../../assets/images/logo-recicle-plus.png")}
-  style={styles.logo}
-  resizeMode="contain"
-/>
+          source={require("../../assets/images/logo-recicle-plus.png")}
+          style={styles.logo}
+          resizeMode="contain"
+        />
       ) : (
         <View />
       )}
 
-      {/* Notificação */}
+      {/* Notificação com BADGE */}
       {onNotificationPress ? (
         <TouchableOpacity
           onPress={onNotificationPress}
           style={styles.sideButton}
         >
-          <Text style={styles.icon}>🔔</Text>
+          <View style={{ position: "relative" }}>
+            <Text style={styles.icon}>🔔</Text>
+
+            {/* 🔴 BADGE */}
+            <NotificationBadge />
+          </View>
         </TouchableOpacity>
       ) : (
         <View style={styles.sideButton} />

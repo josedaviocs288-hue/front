@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { subscribeAtualizacaoGlobal } from "@/src/utils/appEvents";
 
 type Usuario = {
   id?: number;
@@ -22,7 +23,7 @@ type StatusDoacao =
   | "PENDENTE"
   | "ACEITA"
   | "EM_ROTA"
-  | "EM_ANDAMENTO"
+  | "AGUARDANDO_CONFIRMACAO"
   | "CONCLUIDA"
   | "CANCELADA"
   | string;
@@ -52,6 +53,11 @@ type Doacao = {
   materiais?: string[] | string | null;
   dataHoraSolicitada?: string | null;
   criadoEm?: string | null;
+  aceitaEm?: string | null;
+  prazoExpiracao?: string | null;
+  emRotaEm?: string | null;
+  coletaRealizadaEm?: string | null;
+  confirmadaEm?: string | null;
   user?: Usuario | null;
 };
 
@@ -62,7 +68,7 @@ type ApiResponse<T> = {
   timestamp?: string;
 };
 
-type AcaoStatus = "ACEITAR" | "EM_ROTA" | "CONCLUIR";
+type AcaoStatus = "ACEITAR" | "EM_ROTA" | "COLETA_REALIZADA";
 
 export default function ColetasScreen() {
   const [tipoUsuario, setTipoUsuario] = useState("");
@@ -108,56 +114,69 @@ export default function ColetasScreen() {
     return (
       error?.response?.data?.message ||
       error?.response?.data?.detail ||
+      error?.response?.data?.error ||
       error?.message ||
       "Não foi possível concluir a operação."
     );
   };
 
   const carregarDoacoes = useCallback(async (silencioso = false) => {
-    try {
-      if (!silencioso) setLoading(true);
-      setErro("");
+  try {
+    if (!silencioso) setLoading(true);
+    setErro("");
 
-      const response = await api.get<ApiResponse<Doacao[]>>("/doacoes");
+    const response = await api.get<ApiResponse<Doacao[]>>("/doacoes");
 
-      console.log("🔥 RESPOSTA BRUTA /doacoes:", response.data);
+    console.log("🔥 RESPOSTA BRUTA /doacoes:", response.data);
 
-      const sucesso = response.data?.success;
-      const lista = extrairListaDoacoes(response.data?.data ?? response.data);
+    const sucesso = response.data?.success;
+    const lista = extrairListaDoacoes(response.data?.data ?? response.data);
 
-      if (sucesso === false) {
-        throw new Error(
-          response.data?.message || "Não foi possível carregar as doações."
-        );
-      }
-
-      console.log("🔥 DOACOES TRATADAS:", lista);
-      console.log("🔥 TOTAL DE DOACOES:", lista.length);
-
-      setDoacoes(lista);
-    } catch (error: any) {
-      console.log("❌ ERRO DOACOES:", error?.response?.data || error?.message || error);
-      setErro(extrairMensagemErro(error));
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    if (sucesso === false) {
+      throw new Error(
+        response.data?.message || "Não foi possível carregar as doações."
+      );
     }
-  }, []);
 
-  useEffect(() => {
-    if (carregandoTipo) return;
+    console.log("🔥 DOACOES TRATADAS:", lista);
+    console.log("🔥 TOTAL DE DOACOES:", lista.length);
 
-    if (tipoUsuario === "COLETOR") {
-      carregarDoacoes();
-    } else {
-      setLoading(false);
-    }
-  }, [tipoUsuario, carregandoTipo, carregarDoacoes]);
-
-  function onRefresh() {
-    setRefreshing(true);
-    carregarDoacoes(true);
+    setDoacoes(lista);
+  } catch (error: any) {
+    console.log(
+      "❌ ERRO DOACOES:",
+      error?.response?.data || error?.message || error
+    );
+    setErro(extrairMensagemErro(error));
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
   }
+}, []);
+
+// COLE ESTE BLOCO NOVO AQUI
+useEffect(() => {
+  const unsubscribe = subscribeAtualizacaoGlobal(() => {
+    carregarDoacoes(true);
+  });
+
+  return unsubscribe;
+}, [carregarDoacoes]);
+
+useEffect(() => {
+  if (carregandoTipo) return;
+
+  if (tipoUsuario === "COLETOR") {
+    carregarDoacoes();
+  } else {
+    setLoading(false);
+  }
+}, [tipoUsuario, carregandoTipo, carregarDoacoes]);
+
+function onRefresh() {
+  setRefreshing(true);
+  carregarDoacoes(true);
+}
 
   function formatarData(data?: string | null) {
     if (!data) return "Não informado";
@@ -216,21 +235,31 @@ export default function ColetasScreen() {
       item.quantidadeUnidades !== undefined &&
       Number(item.quantidadeUnidades) > 0
     ) {
-      return `${item.quantidadeUnidades} unidades`;
+      return `${item.quantidadeUnidades} unidade(s)`;
+    }
+
+    if (item.tipoQuantidade?.trim()) {
+      return item.tipoQuantidade;
     }
 
     return "Não informada";
   }
 
+  function normalizarStatus(status?: string | null) {
+    return String(status || "").trim().toUpperCase();
+  }
+
   function atualizarListaLocal(id: number, novoStatus: string) {
-    if (novoStatus === "CONCLUIDA" || novoStatus === "CANCELADA") {
+    const statusNormalizado = normalizarStatus(novoStatus);
+
+    if (statusNormalizado === "CONCLUIDA" || statusNormalizado === "CANCELADA") {
       setDoacoes((listaAtual) => listaAtual.filter((item) => item.id !== id));
       return;
     }
 
     setDoacoes((listaAtual) =>
       listaAtual.map((item) =>
-        item.id === id ? { ...item, status: novoStatus } : item
+        item.id === id ? { ...item, status: statusNormalizado } : item
       )
     );
   }
@@ -251,8 +280,8 @@ export default function ColetasScreen() {
         rota = `/doacoes/${id}/em-rota`;
         proximoStatus = "EM_ROTA";
       } else {
-        rota = `/doacoes/${id}/concluir`;
-        proximoStatus = "CONCLUIDA";
+        rota = `/doacoes/${id}/coleta-realizada`;
+        proximoStatus = "AGUARDANDO_CONFIRMACAO";
       }
 
       console.log("➡️ CHAMANDO ROTA:", rota);
@@ -267,7 +296,9 @@ export default function ColetasScreen() {
         );
       }
 
-      const statusReal = response.data?.data?.status || proximoStatus;
+      const dataResponse = response.data?.data as { status?: string } | undefined;
+
+      const statusReal = dataResponse?.status || proximoStatus;
 
       atualizarListaLocal(id, statusReal);
 
@@ -290,14 +321,15 @@ export default function ColetasScreen() {
   }
 
   function corStatus(status?: string) {
-    switch (String(status || "").toUpperCase()) {
+    switch (normalizarStatus(status)) {
       case "PENDENTE":
         return "#f59e0b";
       case "ACEITA":
         return "#2563eb";
       case "EM_ROTA":
-      case "EM_ANDAMENTO":
         return "#0ea5e9";
+      case "AGUARDANDO_CONFIRMACAO":
+        return "#7c3aed";
       case "CONCLUIDA":
         return "#16a34a";
       case "CANCELADA":
@@ -307,19 +339,48 @@ export default function ColetasScreen() {
     }
   }
 
+  function textoStatus(status?: string) {
+    switch (normalizarStatus(status)) {
+      case "PENDENTE":
+        return "Pendente";
+      case "ACEITA":
+        return "Aceita";
+      case "EM_ROTA":
+        return "Em rota";
+      case "AGUARDANDO_CONFIRMACAO":
+        return "Aguardando confirmação";
+      case "CONCLUIDA":
+        return "Concluída";
+      case "CANCELADA":
+        return "Cancelada";
+      default:
+        return "Indefinido";
+    }
+  }
+
   const doacoesAtivas = useMemo(() => {
     return doacoes.filter((item) => {
-      const status = String(item.status || "").toUpperCase();
-      return status !== "CONCLUIDA" && status !== "CANCELADA";
+      const status = normalizarStatus(item.status);
+
+      return (
+        status === "PENDENTE" ||
+        status === "ACEITA" ||
+        status === "EM_ROTA" ||
+        status === "AGUARDANDO_CONFIRMACAO"
+      );
     });
   }, [doacoes]);
 
   function renderBotoes(item: Doacao, processando: boolean) {
     if (!item?.id) return null;
 
-    const status = String(item.status || "PENDENTE").toUpperCase();
+    const status = normalizarStatus(item.status);
 
-    if (status === "CONCLUIDA" || status === "CANCELADA") {
+    if (
+      status === "CONCLUIDA" ||
+      status === "CANCELADA" ||
+      status === "AGUARDANDO_CONFIRMACAO"
+    ) {
       return null;
     }
 
@@ -347,7 +408,7 @@ export default function ColetasScreen() {
         <TouchableOpacity
           style={[
             styles.actionButton,
-            styles.orangeButton,
+            styles.routeButton,
             processando && styles.disabledButton,
           ]}
           onPress={() => atualizarStatus(item.id, "EM_ROTA")}
@@ -361,7 +422,7 @@ export default function ColetasScreen() {
       );
     }
 
-    if (status === "EM_ROTA" || status === "EM_ANDAMENTO") {
+    if (status === "EM_ROTA") {
       return (
         <TouchableOpacity
           style={[
@@ -369,12 +430,12 @@ export default function ColetasScreen() {
             styles.greenButton,
             processando && styles.disabledButton,
           ]}
-          onPress={() => atualizarStatus(item.id, "CONCLUIR")}
+          onPress={() => atualizarStatus(item.id, "COLETA_REALIZADA")}
           disabled={processando}
           activeOpacity={0.8}
         >
           <Text style={styles.actionText}>
-            {processando ? "Atualizando..." : "Concluir"}
+            {processando ? "Atualizando..." : "Coleta realizada"}
           </Text>
         </TouchableOpacity>
       );
@@ -383,8 +444,49 @@ export default function ColetasScreen() {
     return null;
   }
 
+  function renderInfoTempo(item: Doacao) {
+    const status = normalizarStatus(item.status);
+
+    if (status === "AGUARDANDO_CONFIRMACAO") {
+      return (
+        <Text style={styles.info}>
+          <Text style={styles.label}>Situação: </Text>
+          Aguardando confirmação do doador
+        </Text>
+      );
+    }
+
+    if (status === "EM_ROTA" && item.emRotaEm) {
+      return (
+        <Text style={styles.info}>
+          <Text style={styles.label}>Em rota desde: </Text>
+          {formatarData(item.emRotaEm)}
+        </Text>
+      );
+    }
+
+    if (status === "ACEITA" && item.aceitaEm) {
+      return (
+        <>
+          <Text style={styles.info}>
+            <Text style={styles.label}>Aceita em: </Text>
+            {formatarData(item.aceitaEm)}
+          </Text>
+
+          <Text style={styles.info}>
+            <Text style={styles.label}>Reserva até: </Text>
+            {formatarData(item.prazoExpiracao)}
+          </Text>
+        </>
+      );
+    }
+
+    return null;
+  }
+
   function renderItem({ item }: { item: Doacao }) {
     const processando = atualizandoId === item.id;
+
     const nomeDoador =
       item.doadorNome ||
       item.doador?.nome ||
@@ -395,10 +497,11 @@ export default function ColetasScreen() {
       <View style={styles.card}>
         <View style={styles.cardTop}>
           <Text style={styles.nomeDoador}>{nomeDoador}</Text>
-          <View style={[styles.badge, { backgroundColor: corStatus(item.status) }]}>
-            <Text style={styles.badgeText}>
-              {String(item.status || "PENDENTE").toUpperCase()}
-            </Text>
+
+          <View
+            style={[styles.badge, { backgroundColor: corStatus(item.status) }]}
+          >
+            <Text style={styles.badgeText}>{textoStatus(item.status)}</Text>
           </View>
         </View>
 
@@ -432,6 +535,8 @@ export default function ColetasScreen() {
           {formatarData(item.dataHoraSolicitada || item.criadoEm)}
         </Text>
 
+        {renderInfoTempo(item)}
+
         <View style={styles.actionRow}>{renderBotoes(item, processando)}</View>
       </View>
     );
@@ -455,43 +560,44 @@ export default function ColetasScreen() {
         <Text style={styles.blockText}>
           Essa tela só aparece para usuários cadastrados como coletor.
         </Text>
-        <Text style={[styles.blockText, { marginTop: 10 }]}>
-          Tipo detectado: {tipoUsuario || "não encontrado"}
-        </Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.hero}>
-        <Text style={styles.heroTitle}>Doações dos doadores</Text>
-        <Text style={styles.heroSub}>
-          Aqui você acompanha as solicitações recebidas.
+      <View style={styles.header}>
+        <Text style={styles.title}>Coletas</Text>
+        <Text style={styles.subtitle}>
+          Acompanhe e atualize suas coletas ativas
         </Text>
       </View>
 
-      {erro ? <Text style={styles.erro}>{erro}</Text> : null}
+      {!!erro && (
+        <View style={styles.errorBox}>
+          <Text style={styles.errorText}>{erro}</Text>
+        </View>
+      )}
 
       <FlatList
         data={doacoesAtivas}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}
-        contentContainerStyle={
-          doacoesAtivas.length === 0 ? styles.emptyList : styles.list
-        }
+        contentContainerStyle={[
+          styles.listContent,
+          doacoesAtivas.length === 0 && styles.emptyListContent,
+        ]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyTitle}>Nenhuma coleta disponível</Text>
+            <Text style={styles.emptyTitle}>Nenhuma coleta ativa</Text>
             <Text style={styles.emptyText}>
-              Quando houver doações pendentes, elas aparecerão aqui.
+              Quando houver doações disponíveis ou em andamento, elas aparecerão aqui.
             </Text>
           </View>
         }
-        showsVerticalScrollIndicator={false}
       />
     </View>
   );
@@ -500,50 +606,46 @@ export default function ColetasScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f4f7fb",
+    backgroundColor: "#f7f8fa",
   },
-  hero: {
-    backgroundColor: "#22c55e",
-    paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 18,
-    borderBottomLeftRadius: 22,
-    borderBottomRightRadius: 22,
+  header: {
+    paddingTop: 18,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
   },
-  heroTitle: {
-    color: "#ffffff",
-    fontSize: 22,
+  title: {
+    fontSize: 24,
     fontWeight: "800",
+    color: "#111827",
   },
-  heroSub: {
-    color: "#dcfce7",
-    fontSize: 14,
+  subtitle: {
     marginTop: 4,
+    fontSize: 14,
+    color: "#6b7280",
   },
-  list: {
+  listContent: {
     padding: 16,
-    paddingBottom: 30,
+    paddingBottom: 32,
   },
-  emptyList: {
+  emptyListContent: {
     flexGrow: 1,
     justifyContent: "center",
-    padding: 20,
   },
   card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
+    backgroundColor: "#fff",
+    borderRadius: 16,
     padding: 16,
     marginBottom: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
   },
   cardTop: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 12,
     gap: 10,
   },
@@ -559,14 +661,14 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   badgeText: {
-    color: "#ffffff",
+    color: "#fff",
+    fontWeight: "700",
     fontSize: 12,
-    fontWeight: "800",
   },
   info: {
     fontSize: 14,
     color: "#374151",
-    marginBottom: 7,
+    marginBottom: 8,
     lineHeight: 20,
   },
   label: {
@@ -574,34 +676,35 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   actionRow: {
-    marginTop: 14,
+    marginTop: 10,
   },
   actionButton: {
+    minHeight: 46,
     borderRadius: 12,
-    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-  },
-  actionText: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "800",
+    paddingHorizontal: 16,
   },
   blueButton: {
     backgroundColor: "#2563eb",
   },
-  orangeButton: {
-    backgroundColor: "#f59e0b",
+  routeButton: {
+    backgroundColor: "#0ea5e9",
   },
   greenButton: {
     backgroundColor: "#16a34a",
   },
   disabledButton: {
-    opacity: 0.65,
+    opacity: 0.6,
+  },
+  actionText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 15,
   },
   centered: {
     flex: 1,
-    backgroundColor: "#f4f7fb",
+    backgroundColor: "#f7f8fa",
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
@@ -615,41 +718,42 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "800",
     color: "#111827",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   blockText: {
-    fontSize: 15,
-    color: "#4b5563",
     textAlign: "center",
+    color: "#6b7280",
+    fontSize: 15,
     lineHeight: 22,
-  },
-  erro: {
-    marginHorizontal: 16,
-    marginTop: 14,
-    backgroundColor: "#fee2e2",
-    color: "#b91c1c",
-    padding: 12,
-    borderRadius: 12,
-    fontSize: 14,
-    fontWeight: "600",
   },
   emptyBox: {
     alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    backgroundColor: "#ffffff",
-    borderRadius: 18,
+    paddingHorizontal: 24,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "800",
     color: "#111827",
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 14,
-    color: "#6b7280",
     textAlign: "center",
-    lineHeight: 21,
+    fontSize: 15,
+    color: "#6b7280",
+    lineHeight: 22,
+  },
+  errorBox: {
+    margin: 16,
+    marginBottom: 0,
+    backgroundColor: "#fee2e2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: 12,
+    padding: 12,
+  },
+  errorText: {
+    color: "#991b1b",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

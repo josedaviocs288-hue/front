@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
+import { subscribeAtualizacaoGlobal } from "@/src/utils/appEvents";
 import { api } from "@/src/services/api";
 
 const mapboxToken = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
@@ -22,6 +22,15 @@ if (mapboxToken) {
 }
 
 type TipoUsuario = "DOADOR" | "COLETOR";
+
+type StatusDoacao =
+  | "PENDENTE"
+  | "ACEITA"
+  | "EM_ROTA"
+  | "AGUARDANDO_CONFIRMACAO"
+  | "CONCLUIDA"
+  | "CANCELADA"
+  | string;
 
 type Coordenada = {
   latitude: number;
@@ -38,7 +47,7 @@ type DoacaoMapaItem = {
   rua?: string;
   numero?: string;
   materiais?: string;
-  status?: string;
+  status?: StatusDoacao;
   doadorNome?: string;
   doadorEmail?: string;
   coletorNome?: string;
@@ -88,6 +97,20 @@ type Props = {
 
 const ROTA_DOACAO = "/doacao/casa";
 const ROTA_COLETAS = "/coletas";
+
+function normalizarStatus(status?: string | null): string {
+  return String(status || "").trim().toUpperCase();
+}
+
+function isStatusAtivoMapa(status?: string | null): boolean {
+  const s = normalizarStatus(status);
+  return (
+    s === "PENDENTE" ||
+    s === "ACEITA" ||
+    s === "EM_ROTA" ||
+    s === "AGUARDANDO_CONFIRMACAO"
+  );
+}
 
 export default function MapaHome({
   tipoUsuario: tipoUsuarioProp,
@@ -139,7 +162,11 @@ export default function MapaHome({
   }, [localizacaoColetor]);
 
   const carregarTipoUsuario = useCallback(async () => {
+    let tipoResolvido: TipoUsuario = "DOADOR";
+    let emailResolvido: string | null = null;
+
     if (tipoUsuarioProp) {
+      tipoResolvido = tipoUsuarioProp;
       setTipoUsuario(tipoUsuarioProp);
     } else {
       try {
@@ -149,14 +176,17 @@ export default function MapaHome({
           (await AsyncStorage.getItem("tipo"));
 
         if (tipoSalvo === "COLETOR" || tipoSalvo === "DOADOR") {
-          setTipoUsuario(tipoSalvo);
+          tipoResolvido = tipoSalvo;
         } else if (tipoSalvo === "CLIENTE") {
-          setTipoUsuario("DOADOR");
+          tipoResolvido = "DOADOR";
         } else {
-          setTipoUsuario("DOADOR");
+          tipoResolvido = "DOADOR";
         }
+
+        setTipoUsuario(tipoResolvido);
       } catch (error) {
         console.log("Erro ao carregar tipo do usuário:", error);
+        tipoResolvido = "DOADOR";
         setTipoUsuario("DOADOR");
       }
     }
@@ -176,11 +206,18 @@ export default function MapaHome({
       }
 
       const emailSalvo = emailDireto || emailDoUsuario;
-      setEmailUsuario(emailSalvo ? String(emailSalvo).toLowerCase() : null);
+      emailResolvido = emailSalvo ? String(emailSalvo).toLowerCase() : null;
+      setEmailUsuario(emailResolvido);
     } catch (error) {
       console.log("Erro ao carregar email do usuário:", error);
+      emailResolvido = null;
       setEmailUsuario(null);
     }
+
+    return {
+      tipo: tipoResolvido,
+      email: emailResolvido,
+    };
   }, [tipoUsuarioProp]);
 
   const desconectarWebSocket = useCallback(() => {
@@ -322,17 +359,20 @@ export default function MapaHome({
   }, []);
 
   const selecionarDoacaoAtiva = useCallback(
-    (lista: DoacaoMapaItem[]) => {
-      const email = (emailUsuario || "").toLowerCase();
+    (lista: DoacaoMapaItem[], tipoAtual?: TipoUsuario, emailAtual?: string | null) => {
+      const email = String(emailAtual ?? emailUsuario ?? "").toLowerCase();
+      const tipo = tipoAtual ?? tipoUsuario;
 
-      if (tipoUsuario === "COLETOR") {
+      if (tipo === "COLETOR") {
         return (
           lista.find((item) => {
-            const status = String(item.status || "").toUpperCase();
+            const status = normalizarStatus(item.status);
             const coletorEmail = String(item.coletorEmail || "").toLowerCase();
 
             return (
-              (status === "ACEITA" || status === "EM_ROTA") &&
+              (status === "ACEITA" ||
+                status === "EM_ROTA" ||
+                status === "AGUARDANDO_CONFIRMACAO") &&
               coletorEmail === email
             );
           }) || null
@@ -341,11 +381,13 @@ export default function MapaHome({
 
       return (
         lista.find((item) => {
-          const status = String(item.status || "").toUpperCase();
+          const status = normalizarStatus(item.status);
           const doadorEmail = String(item.doadorEmail || "").toLowerCase();
 
           return (
-            (status === "ACEITA" || status === "EM_ROTA") &&
+            (status === "ACEITA" ||
+              status === "EM_ROTA" ||
+              status === "AGUARDANDO_CONFIRMACAO") &&
             doadorEmail === email
           );
         }) || null
@@ -363,6 +405,15 @@ export default function MapaHome({
       const data = response.data?.data;
 
       if (!data) return;
+
+      const statusAtual = normalizarStatus(data.status);
+
+      if (statusAtual === "CONCLUIDA" || statusAtual === "CANCELADA") {
+        setTrackingAtivo(false);
+        setLocalizacaoColetor(null);
+        setCasaDoador(null);
+        return;
+      }
 
       setTrackingAtivo(true);
 
@@ -403,60 +454,80 @@ export default function MapaHome({
     }
   }, []);
 
-  const carregarDadosBackend = useCallback(async () => {
-    try {
-      const response = await api.get<DoacoesApiResponse>("/doacoes");
-      const lista = response.data?.data ?? [];
-
-      let doacoesFiltradas: DoacaoMapaItem[] = [];
-
-      if (tipoUsuario === "COLETOR") {
-        doacoesFiltradas = lista.filter((item) => {
-          const status = String(item.status || "").toUpperCase();
-          const coletorEmail = String(item.coletorEmail || "").toLowerCase();
-          const email = String(emailUsuario || "").toLowerCase();
-
-          return (
-            status === "PENDENTE" ||
-            ((status === "ACEITA" || status === "EM_ROTA") &&
-              coletorEmail === email)
-          );
-        });
-      } else {
-        doacoesFiltradas = lista.filter((item) => {
-          const doadorEmail = String(item.doadorEmail || "").toLowerCase();
-          const email = String(emailUsuario || "").toLowerCase();
-          const status = String(item.status || "").toUpperCase();
-
-          return (
-            doadorEmail === email &&
-            (status === "PENDENTE" ||
-              status === "ACEITA" ||
-              status === "EM_ROTA")
-          );
-        });
+  const carregarDadosBackend = useCallback(
+    async (
+      contexto?: {
+        tipo?: TipoUsuario;
+        email?: string | null;
       }
+    ) => {
+      try {
+        const response = await api.get<DoacoesApiResponse>("/doacoes");
+        const lista = response.data?.data ?? [];
 
-      setDoacoesMapa(doacoesFiltradas);
+        const tipoAtual = contexto?.tipo ?? tipoUsuario;
+        const emailAtual = String(contexto?.email ?? emailUsuario ?? "").toLowerCase();
 
-      const doacaoAtiva = selecionarDoacaoAtiva(lista);
+        let doacoesFiltradas: DoacaoMapaItem[] = [];
 
-      if (doacaoAtiva?.id) {
-        setDoacaoAtivaId(doacaoAtiva.id);
-        await carregarRastreamento(doacaoAtiva.id);
-      } else {
-        setDoacaoAtivaId(null);
-        setTrackingAtivo(false);
-        setLocalizacaoColetor(null);
-        setCasaDoador(null);
+        if (tipoAtual === "COLETOR") {
+          doacoesFiltradas = lista.filter((item) => {
+            const status = normalizarStatus(item.status);
+            const coletorEmail = String(item.coletorEmail || "").toLowerCase();
+
+            if (status === "CONCLUIDA" || status === "CANCELADA") {
+              return false;
+            }
+
+            return (
+              status === "PENDENTE" ||
+              ((status === "ACEITA" ||
+                status === "EM_ROTA" ||
+                status === "AGUARDANDO_CONFIRMACAO") &&
+                coletorEmail === emailAtual)
+            );
+          });
+        } else {
+          doacoesFiltradas = lista.filter((item) => {
+            const doadorEmail = String(item.doadorEmail || "").toLowerCase();
+            const status = normalizarStatus(item.status);
+
+            if (status === "CONCLUIDA" || status === "CANCELADA") {
+              return false;
+            }
+
+            return (
+              doadorEmail === emailAtual &&
+              (status === "PENDENTE" ||
+                status === "ACEITA" ||
+                status === "EM_ROTA" ||
+                status === "AGUARDANDO_CONFIRMACAO")
+            );
+          });
+        }
+
+        setDoacoesMapa(doacoesFiltradas);
+
+        const doacaoAtiva = selecionarDoacaoAtiva(lista, tipoAtual, emailAtual);
+
+        if (doacaoAtiva?.id) {
+          setDoacaoAtivaId(doacaoAtiva.id);
+          await carregarRastreamento(doacaoAtiva.id);
+        } else {
+          setDoacaoAtivaId(null);
+          setTrackingAtivo(false);
+          setLocalizacaoColetor(null);
+          setCasaDoador(null);
+        }
+
+        setErro("");
+      } catch (error) {
+        console.log("Erro ao carregar dados do mapa:", error);
+        setErro("Não foi possível carregar os dados do mapa.");
       }
-
-      setErro("");
-    } catch (error) {
-      console.log("Erro ao carregar dados do mapa:", error);
-      setErro("Não foi possível carregar os dados do mapa.");
-    }
-  }, [tipoUsuario, emailUsuario, selecionarDoacaoAtiva, carregarRastreamento]);
+    },
+    [tipoUsuario, emailUsuario, selecionarDoacaoAtiva, carregarRastreamento]
+  );
 
   const buscarRota = useCallback(async () => {
     if (!mapboxToken || !minhaLocalizacao || !casaDoador) {
@@ -553,44 +624,52 @@ export default function MapaHome({
   }, [tipoUsuario, minhaLocalizacao, casaDoador, localizacaoColetor, doacoesMapa]);
 
   const atualizarTudo = useCallback(async () => {
-    await carregarTipoUsuario();
-    const coords = await pegarLocalizacao();
-    await carregarDadosBackend();
+  await carregarTipoUsuario();
+  const coords = await pegarLocalizacao();
+  await carregarDadosBackend();
 
-    if (tipoUsuario === "COLETOR" && coords && doacaoAtivaId) {
-      await enviarMinhaLocalizacao(coords, doacaoAtivaId);
-      await carregarRastreamento(doacaoAtivaId);
-    }
-  }, [
-    carregarTipoUsuario,
-    pegarLocalizacao,
-    carregarDadosBackend,
-    tipoUsuario,
-    doacaoAtivaId,
-    enviarMinhaLocalizacao,
-    carregarRastreamento,
-  ]);
+  if (tipoUsuario === "COLETOR" && coords && doacaoAtivaId) {
+    await enviarMinhaLocalizacao(coords, doacaoAtivaId);
+    await carregarRastreamento(doacaoAtivaId);
+  }
+}, [
+  carregarTipoUsuario,
+  pegarLocalizacao,
+  carregarDadosBackend,
+  tipoUsuario,
+  doacaoAtivaId,
+  enviarMinhaLocalizacao,
+  carregarRastreamento,
+]);
 
-  useEffect(() => {
-    let mounted = true;
+useEffect(() => {
+  const unsubscribe = subscribeAtualizacaoGlobal(() => {
+    atualizarTudo();
+  });
 
-    async function iniciar() {
-      setLoading(true);
-      await atualizarTudo();
-      if (mounted) setLoading(false);
-    }
+  return unsubscribe;
+}, [atualizarTudo]);
 
-    iniciar();
+useEffect(() => {
+  let mounted = true;
 
-    const interval = setInterval(() => {
-      atualizarTudo();
-    }, 5000);
+  async function iniciar() {
+    setLoading(true);
+    await atualizarTudo();
+    if (mounted) setLoading(false);
+  }
 
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, [atualizarTudo]);
+  iniciar();
+
+  const interval = setInterval(() => {
+    atualizarTudo();
+  }, 5000);
+
+  return () => {
+    mounted = false;
+    clearInterval(interval);
+  };
+}, [atualizarTudo]);
 
   useEffect(() => {
     if (
@@ -636,8 +715,8 @@ export default function MapaHome({
 
     if (trackingAtivo) {
       return tipoUsuario === "COLETOR"
-        ? "Rastreamento ativo da coleta."
-        : "Coletor em deslocamento.";
+        ? "Você está a caminho da coleta."
+        : "Coletor a caminho.";
     }
 
     if (doacoesMapa.length === 0) {
@@ -731,17 +810,24 @@ export default function MapaHome({
         )}
 
         {!trackingAtivo &&
-          doacoesMapa.map((item) => (
-            <Mapbox.PointAnnotation
-              key={`doacao-${item.id}`}
-              id={`doacao-${item.id}`}
-              coordinate={[Number(item.longitude), Number(item.latitude)]}
-            >
-              <View style={styles.markerWrapper}>
-                <View style={styles.markerHome} />
-              </View>
-            </Mapbox.PointAnnotation>
-          ))}
+          doacoesMapa
+            .filter((item) => isStatusAtivoMapa(item.status))
+            .filter((item) => {
+              const lat = Number(item.latitude);
+              const lng = Number(item.longitude);
+              return !Number.isNaN(lat) && !Number.isNaN(lng);
+            })
+            .map((item) => (
+              <Mapbox.PointAnnotation
+                key={`doacao-${item.id}`}
+                id={`doacao-${item.id}`}
+                coordinate={[Number(item.longitude), Number(item.latitude)]}
+              >
+                <View style={styles.markerWrapper}>
+                  <View style={styles.markerHome} />
+                </View>
+              </Mapbox.PointAnnotation>
+            ))}
 
         {trackingAtivo && casaDoador && (
           <Mapbox.PointAnnotation
