@@ -35,19 +35,25 @@ export default function NotificacoesScreen() {
   const [notificacoes, setNotificacoes] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [processandoId, setProcessandoId] = useState<number | null>(null);
-  const [marcandoTodas, setMarcandoTodas] = useState(false);
 
   const carregarNotificacoes = useCallback(async () => {
     try {
       setLoading(true);
 
-      const response = await api.get<ApiResponse<Notificacao[]>>("/notificacoes/me");
+      const response = await api.get<ApiResponse<Notificacao[]>>(
+        "/notificacoes/me"
+      );
 
-      const lista = Array.isArray(response?.data?.data) ? response.data.data : [];
+      const lista = Array.isArray(response?.data?.data)
+        ? response.data.data
+        : [];
 
       setNotificacoes(lista);
     } catch (error: any) {
-      console.log("❌ Erro ao carregar notificações:", error?.response?.data || error?.message || error);
+      console.log(
+        "❌ Erro ao carregar notificações:",
+        error?.response?.data || error?.message || error
+      );
       Alert.alert("Erro", "Não foi possível carregar as notificações.");
     } finally {
       setLoading(false);
@@ -73,25 +79,13 @@ export default function NotificacoesScreen() {
           item.id === id ? { ...item, lida: true } : item
         )
       );
+
+      emitirAtualizacaoGlobal();
     } catch (error: any) {
-      console.log("❌ Erro ao marcar como lida:", error?.response?.data || error?.message || error);
-    }
-  }
-
-  async function marcarTodasComoLidas() {
-    try {
-      setMarcandoTodas(true);
-
-      await api.put("/notificacoes/lidas");
-
-      setNotificacoes((listaAnterior) =>
-        listaAnterior.map((item) => ({ ...item, lida: true }))
+      console.log(
+        "❌ Erro ao marcar como lida:",
+        error?.response?.data || error?.message || error
       );
-    } catch (error: any) {
-      console.log("❌ Erro ao marcar todas como lidas:", error?.response?.data || error?.message || error);
-      Alert.alert("Erro", "Não foi possível marcar todas como lidas.");
-    } finally {
-      setMarcandoTodas(false);
     }
   }
 
@@ -106,19 +100,44 @@ export default function NotificacoesScreen() {
 
       await api.patch(`/doacoes/${notificacao.referenciaId}/confirmar-coleta`);
 
-      if (!notificacao.lida) {
-        await marcarComoLida(notificacao.id);
+      try {
+        if (!notificacao.lida) {
+          await api.put(`/notificacoes/${notificacao.id}/lida`);
+        }
+      } catch (erroLida: any) {
+        console.log(
+          "⚠️ Coleta confirmada, mas houve erro ao marcar notificação como lida:",
+          erroLida?.response?.data || erroLida?.message || erroLida
+        );
       }
 
-      Alert.alert("Sucesso", "Coleta confirmada com sucesso.");
+      try {
+        await api.delete(`/notificacoes/${notificacao.id}`);
+      } catch (erroRemover: any) {
+        console.log(
+          "⚠️ Coleta confirmada, mas houve erro ao remover notificação:",
+          erroRemover?.response?.data || erroRemover?.message || erroRemover
+        );
+      }
 
-      await carregarNotificacoes();
+      setNotificacoes((listaAnterior) =>
+        listaAnterior.filter((item) => item.id !== notificacao.id)
+      );
+
+      emitirAtualizacaoGlobal();
+
+      Alert.alert("Sucesso", "Coleta confirmada com sucesso.");
     } catch (error: any) {
-      console.log("❌ Erro ao confirmar coleta:", error?.response?.data || error?.message || error);
+      console.log(
+        "❌ Erro ao confirmar coleta:",
+        error?.response?.data || error?.message || error
+      );
+
       const mensagem =
         error?.response?.data?.message ||
         error?.response?.data?.error ||
         "Não foi possível confirmar a coleta.";
+
       Alert.alert("Erro", String(mensagem));
     } finally {
       setProcessandoId(null);
@@ -131,15 +150,39 @@ export default function NotificacoesScreen() {
         await marcarComoLida(notificacao.id);
       }
 
-      Alert.alert(notificacao.titulo || "Notificação", notificacao.mensagem || "");
+      Alert.alert(
+        notificacao.titulo || "Notificação",
+        notificacao.mensagem || ""
+      );
     } catch (error: any) {
-      console.log("❌ Erro ao abrir notificação:", error?.response?.data || error?.message || error);
+      console.log(
+        "❌ Erro ao abrir notificação:",
+        error?.response?.data || error?.message || error
+      );
       Alert.alert("Erro", "Não foi possível abrir a notificação.");
     }
   }
 
-  async function excluirVisualmente(id: number) {
-    setNotificacoes((listaAnterior) => listaAnterior.filter((item) => item.id !== id));
+  async function removerNotificacao(id: number) {
+    try {
+      setProcessandoId(id);
+
+      await api.delete(`/notificacoes/${id}`);
+
+      setNotificacoes((listaAnterior) =>
+        listaAnterior.filter((item) => item.id !== id)
+      );
+
+      emitirAtualizacaoGlobal();
+    } catch (error: any) {
+      console.log(
+        "❌ Erro ao remover notificação:",
+        error?.response?.data || error?.message || error
+      );
+      Alert.alert("Erro", "Não foi possível remover a notificação.");
+    } finally {
+      setProcessandoId(null);
+    }
   }
 
   function podeConfirmar(notificacao: Notificacao) {
@@ -194,10 +237,14 @@ export default function NotificacoesScreen() {
 
           <TouchableOpacity
             style={styles.deleteBtn}
-            onPress={() => excluirVisualmente(item.id)}
+            onPress={() => removerNotificacao(item.id)}
             disabled={emProcesso}
           >
-            <Text style={styles.btnText}>Remover</Text>
+            {emProcesso ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.btnText}>Remover</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -206,9 +253,16 @@ export default function NotificacoesScreen() {
 
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+      <View
+        style={[
+          styles.container,
+          { justifyContent: "center", alignItems: "center" },
+        ]}
+      >
         <ActivityIndicator size="large" color="#2e7d32" />
-        <Text style={{ marginTop: 12, color: "#333" }}>Carregando notificações...</Text>
+        <Text style={{ marginTop: 12, color: "#333" }}>
+          Carregando notificações...
+        </Text>
       </View>
     );
   }
@@ -221,23 +275,11 @@ export default function NotificacoesScreen() {
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <Text style={styles.empty}>Você não tem notificações no momento.</Text>
+          <Text style={styles.empty}>
+            Você não tem notificações no momento.
+          </Text>
         }
       />
-
-      {notificacoes.length > 0 && (
-        <TouchableOpacity
-          style={styles.footer}
-          onPress={marcarTodasComoLidas}
-          disabled={marcandoTodas}
-        >
-          {marcandoTodas ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.footerText}>Marcar todas como lidas</Text>
-          )}
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
